@@ -1,7 +1,9 @@
 # Contributing
 
 Thanks for your interest. scriptorium is a small project maintained in spare time: issues and
-pull requests are welcome, but may take a while to get an answer.
+pull requests are welcome, but may take a while to get an answer. Open an issue with one of its
+forms (an engine on your machine, text read wrong, something else not working, an idea); a
+vulnerability is reported privately (`SECURITY.md`).
 
 ## Getting started
 

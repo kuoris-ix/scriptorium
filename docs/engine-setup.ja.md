@@ -217,8 +217,8 @@ uv run scriptorium run data/ocr-trial -e windows-ocr
 
 ## 3. 結果の書き方
 
-エンジンと環境ごとに、次を Issue に貼る。架空の書類の結果なので、読み取った文字が
-そのまま入っていてよい。
+エンジンと環境ごとに、Issue を「An engine on your machine」のフォームで作り、次を貼る。架空の書類の結果なので、
+読み取った文字がそのまま入っていてよい。出てくるパスの中のユーザー名は、置き換える（`<user>` など）。
 
 - `scriptorium run` の最初の行（版・モデル・装置）と最後の行
 - `scriptorium check-engines` の出力
