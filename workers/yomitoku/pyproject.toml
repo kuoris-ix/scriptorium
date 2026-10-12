@@ -14,7 +14,8 @@ dependencies = [
 [tool.uv]
 package = false
 
-# On Windows, PyTorch built for CUDA (an NVIDIA GPU that CUDA 12 supports).
+# On Windows, PyTorch built for CUDA 13.0 (an NVIDIA GPU that CUDA 13 supports, and a driver
+# for it): the CUDA 12.8 builds stop at PyTorch 2.11.
 # Elsewhere PyPI's: the CPU on Linux, the CPU and Apple's MPS on a Mac. uv takes the
 # newest PyTorch the index has.
 [tool.uv.sources]
@@ -23,5 +24,5 @@ torchvision = [{ index = "pytorch-cuda", marker = "sys_platform == 'win32'" }]
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true

@@ -10,3 +10,14 @@ dependencies = ["ndlocr-lite @ git+https://github.com/ndl-lab/ndlocr-lite@1.2.3"
 
 [tool.uv]
 package = false
+# NDLOCR-Lite pins its dependencies to exact versions, some with known vulnerabilities
+# fixed since: these take the fixed versions instead (within the same major version).
+# The worker loads Pillow, lxml and protobuf (through ONNX Runtime); pypdf (PDF output)
+# and oauthlib (through flet, its GUI) aren't loaded, but are raised all the same.
+override-dependencies = [
+    "pillow>=12.3.0,<13",
+    "lxml>=6.1.0,<7",
+    "protobuf>=6.33.5,<7",
+    "pypdf>=6.19.0,<7",
+    "oauthlib>=4.0.0,<5",
+]

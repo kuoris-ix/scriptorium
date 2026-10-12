@@ -129,15 +129,18 @@ uv run scriptorium run data/ocr-trial -e yomitoku-lite
 ```
 
 - 初回は、モデルを Hugging Face から取ってくる
-- **Windows**: CUDA 版の PyTorch が入る。入ったら、GPU が使えるかを確かめる:
+- **Windows**: CUDA 13.0 版の PyTorch が入る。CUDA 13 に対応した NVIDIA の GPU と、そのドライバ（580 以降）が
+  要る。入ったら、GPU が使えるかを確かめる:
 
   ```powershell
   uv run --project workers/yomitoku python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
   ```
 
-  `True` と GPU の名前が出ればよい。`uv sync` で PyTorch が見つからないと言われたら、
-  `workers/yomitoku/pyproject.toml` の `cu128` を、PyTorch の公式サイトの選択欄
-  （https://pytorch.org/get-started/locally/ ）に出る CUDA の版（`cu126`・`cu130` など）に変える
+  `True` と GPU の名前が出ればよい。`False` になるか、`uv sync` で PyTorch が見つからないと言われたら、
+  `workers/yomitoku/pyproject.toml` の `cu130` を、GPU とドライバが対応していて、PyTorch の公式サイトの選択欄
+  （https://pytorch.org/get-started/locally/ ）に出る CUDA の版（`cu128`・`cu126` など）に変えて、もう一度
+  `uv sync` する。古い GPU（CUDA 13 は Maxwell・Pascal・Volta の世代を外した）は CUDA 12 の版にする。その版の
+  PyTorch は 2.11 まで
 - **Mac**: `auto` で MPS を使う。エラーになったら `--device cpu --reread` で CPU でも読ませて、両方の結果を貼る
 - `scriptorium run` の最初の行の装置が `cuda`（Windows）・`mps`（Mac）になっているかを見る
 
@@ -160,7 +163,9 @@ uv run scriptorium run data/ocr-trial -e paddleocr
 ### NDLOCR-Lite（Mac・Windows・Linux）
 
 Git が要る（uv が GitHub のリポジトリから取ってくる）。版は 1.2.3 に固定してある（1.3.0 以降は、配布の設定から
-`pdf_output_utils` などが抜けていて、入れたコマンドが `ModuleNotFoundError` で止まる）。
+`pdf_output_utils` などが抜けていて、入れたコマンドが `ModuleNotFoundError` で止まる）。NDLOCR-Lite は自分の依存の
+版を固定している。そのうち脆弱性の知られたものは、worker が直った版に上げている（`pyproject.toml` の
+`override-dependencies`）。
 
 ```bash
 uv sync --project workers/ndlocr_lite

@@ -480,10 +480,15 @@ myapp ocr diff-engines data/scan -e yomitoku -e paddleocr
   （pypdfium2 は型情報がないので、mypy の設定で `ignore_missing_imports` にした）
 - OCR のライブラリは、エンジンごとの worker の環境（`workers/<worker>/pyproject.toml`）にだけ入れる
   - OS 専用のもの（Apple Vision・Windows の OCR）は、`[tool.uv] environments` で OS を限る
-- **Windows の GPU**: Windows では、yomitoku の worker は PyTorch の CUDA 版（`download.pytorch.org/whl/cu128`）を、
+- **Windows の GPU**: Windows では、yomitoku の worker は PyTorch の CUDA 版（`download.pytorch.org/whl/cu130`。
+  CUDA 12.8 版は PyTorch 2.11 までで、脆弱性の直った版が無いため）を、
   PaddleOCR の worker は `paddlepaddle-gpu`（PaddlePaddle の配布元の `cu126`）を入れる。macOS・Linux は PyPI の
   通常版（Mac の PyTorch は MPS を使える）。GPU のない Windows で PaddleOCR を使うなら、`pyproject.toml` の
   `paddlepaddle-gpu` の行を消し、`paddlepaddle` の条件を外す
+- **NDLOCR-Lite の依存**: NDLOCR-Lite は依存の版をすべて固定していて（`requirements.txt`）、脆弱性の直った版に
+  上がらない。worker の `pyproject.toml` の `override-dependencies` で、そのうち脆弱性の知られたもの（Pillow・lxml・
+  protobuf・pypdf・oauthlib）を、同じメジャー版の直った版に上げる。読んだ結果が変わらないことは、架空の書類 64 ページで
+  確かめた（読んだ文字・位置・確からしさが同じ）
   - Windows の `paddlepaddle-gpu` は CUDA の部品（cuDNN・cuBLAS など）を含まず、名前で（PATH から）読み込む。
     別に入れた CUDA は cuDNN がなかったり版が古かったりするので、NVIDIA が
     PyPI で配る部品（`nvidia-cudnn-cu12` など）を worker の環境に入れ、worker が起動時にその場所を PATH の先頭に足す

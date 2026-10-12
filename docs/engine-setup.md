@@ -143,15 +143,18 @@ uv run scriptorium run data/ocr-trial -e yomitoku-lite
 ```
 
 - The first time, the models are fetched from Hugging Face.
-- **Windows**: PyTorch built for CUDA is installed. Then check that the GPU can be used:
+- **Windows**: PyTorch built for CUDA 13.0 is installed: it needs an NVIDIA GPU that CUDA 13
+  supports and a driver for it (580 or later). Then check that the GPU can be used:
 
   ```powershell
   uv run --project workers/yomitoku python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
   ```
 
-  `True` and the GPU's name mean it can. If `uv sync` says PyTorch isn't found, change `cu128`
-  in `workers/yomitoku/pyproject.toml` to the CUDA version PyTorch's site offers
-  (https://pytorch.org/get-started/locally/; `cu126`, `cu130` and so on).
+  `True` and the GPU's name mean it can. If it says `False`, or `uv sync` says PyTorch isn't
+  found, change `cu130` in `workers/yomitoku/pyproject.toml` to a CUDA version your GPU and
+  driver support that PyTorch's site offers (https://pytorch.org/get-started/locally/; `cu128`,
+  `cu126` and so on), and `uv sync` again. An older GPU (CUDA 13 leaves out the Maxwell, Pascal
+  and Volta ones) needs CUDA 12; its builds stop at PyTorch 2.11.
 - **Mac**: `auto` uses MPS. If that fails, read with `--device cpu --reread` too, and paste both
   results.
 - Check that the device on `scriptorium run`'s first line is `cuda` (Windows) or `mps` (Mac).
@@ -179,7 +182,9 @@ uv run scriptorium run data/ocr-trial -e paddleocr
 
 Git is needed (uv fetches it from its GitHub repository). The version is pinned to 1.2.3 (from
 1.3.0 on, `pdf_output_utils` and others are missing from the package, and the installed command
-stops with `ModuleNotFoundError`).
+stops with `ModuleNotFoundError`). NDLOCR-Lite pins its own dependencies to exact versions; the
+worker raises those with known vulnerabilities to fixed versions (`override-dependencies` in its
+`pyproject.toml`).
 
 ```bash
 uv sync --project workers/ndlocr_lite
