@@ -22,7 +22,9 @@ Windows（6 エンジン）と Mac（Windows の OCR を除く 6 エンジン）
 ### scriptorium を用意する
 
 worker は、このリポジトリを PC に 1 つ clone した中の `workers/` で動かす（scriptorium を使う各プログラムは
-`OcrConfig.workers_dir` でそこを指す）。下のコマンドは clone の中で動かす。
+`OcrConfig.workers_dir` でそこを指す）。下のコマンドは clone の中で動かす。Windows で長いパスを有効にして
+いなければ、clone する先のフォルダは 130 文字ほどまでにする（読んだ結果は、`data/ocr/` より 120 文字ほど長いパスに
+保存する。長すぎるときは、`run` が読む前に知らせる）。
 
 ```bash
 git clone https://github.com/kuoris-ix/scriptorium

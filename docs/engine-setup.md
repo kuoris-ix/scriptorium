@@ -26,6 +26,9 @@ ones (`myapp ocr run` and so on), with its own settings.
 
 The workers run in `workers/` of a clone of this repository, one per machine (each program
 using scriptorium points its `OcrConfig.workers_dir` there). Run the commands below in the clone.
+On Windows, unless long paths are enabled, clone it into a folder of at most 130 characters or
+so: what's read is kept at paths some 120 characters longer than `data/ocr/` (`run` tells when
+they would be too long, before reading).
 
 ```bash
 git clone https://github.com/kuoris-ix/scriptorium
