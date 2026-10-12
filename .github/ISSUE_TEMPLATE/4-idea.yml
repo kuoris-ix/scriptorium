@@ -1,0 +1,22 @@
+name: An idea or request
+description: Something scriptorium could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        scriptorium is maintained in spare time, so an idea may wait a while. Describe the
+        documents it's for in general terms (say, "tables of a bank statement"), not with real ones.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What it's for
+      description: The documents or the work it would help with, and how you do it now.
+    validations:
+      required: true

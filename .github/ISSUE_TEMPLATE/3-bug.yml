@@ -1,0 +1,42 @@
+name: Something else doesn't work
+description: A command, the library or the docs don't do what they say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public: show the problem with fictional documents only, and leave personal
+        parts out of paths (say, `<user>` for your user name).
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you post
+      options:
+        - label: There are no real documents, text read from them or personal information below.
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to make it happen
+      description: The commands, or the code using scriptorium.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output and errors
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: scriptorium's version, and the system
+      placeholder: v0.2.0, macOS 15.5
+    validations:
+      required: true

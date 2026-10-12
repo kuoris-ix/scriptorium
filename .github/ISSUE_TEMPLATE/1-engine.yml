@@ -1,0 +1,79 @@
+name: An engine on your machine
+description: An engine doesn't install or run, or how it did when you tried it (docs/engine-setup.md).
+title: "[engine] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying the engines. Issues are public: paste only what came from **fictional
+        documents** (`scriptorium make-samples`, or ones you drew or printed with made-up values),
+        never scans of real documents or text read from them.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you post
+      options:
+        - label: Everything below comes from fictional documents only.
+          required: true
+        - label: I've replaced my user name, and anything else personal, in the paths below (say, with `<user>`).
+          required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Engine
+      placeholder: yomitoku-lite
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: system-version
+    attributes:
+      label: Its version
+      placeholder: Windows 11 24H2, macOS 15.5, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: scriptorium's version
+      description: The release, or the commit (`git describe --tags` in the clone).
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Where it got stuck, or that it worked.
+    validations:
+      required: true
+  - type: textarea
+    id: check-engines
+    attributes:
+      label: "`scriptorium check-engines`' output"
+      render: text
+  - type: textarea
+    id: run
+    attributes:
+      label: "`scriptorium run`'s first and last lines"
+      render: text
+  - type: textarea
+    id: errors
+    attributes:
+      label: Errors and logs
+      description: From `uv sync` or `scriptorium run`, and the log file's contents (`run` tells where it is).
+      render: text
+  - type: textarea
+    id: scores
+    attributes:
+      label: "`scriptorium score-engines --markdown`'s output"
+      description: If it read the fictional documents.

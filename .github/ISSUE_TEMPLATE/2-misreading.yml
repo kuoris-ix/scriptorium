@@ -1,0 +1,51 @@
+name: Text read wrong
+description: An engine misreads something scriptorium could help with (amounts, dates, turned or slanted pages...).
+title: "[misreading] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. Reproduce the misreading with a **fictional document**: one of
+        `scriptorium make-samples` (say which command and file), or one you made with made-up
+        values (attach it). Never attach real scans or paste text read from real documents.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you post
+      options:
+        - label: The document and everything below are fictional.
+          required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Engine and settings
+      placeholder: yomitoku-lite, --orient tesseract --preprocess flatten,deskew
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: The document
+      description: The `make-samples` command and the file (e.g. `--count 1 --seed 1`, `receipt-1-slant-3.png`), or the document attached.
+    validations:
+      required: true
+  - type: textarea
+    id: misread
+    attributes:
+      label: What it read, and what's right
+      placeholder: "¥1,280 read as 1,230"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output that shows it
+      description: "`scriptorium score-engines` or `diff-engines`, if they show it."
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: scriptorium's version, and the system
+      placeholder: v0.2.0, Windows 11
+    validations:
+      required: true

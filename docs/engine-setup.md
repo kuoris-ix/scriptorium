@@ -240,8 +240,9 @@ For each engine and device:
 
 ## 3. Reporting
 
-For each engine and machine, paste these into an issue. They're results of fictional documents,
-so the text read may be in them as it is.
+For each engine and machine, open an issue with the "An engine on your machine" form, and paste
+these into it. They're results of fictional documents, so the text read may be in them as it
+is; replace your user name in the paths they show (say, with `<user>`).
 
 - `scriptorium run`'s first line (version, model, device) and last line
 - `scriptorium check-engines`' output
