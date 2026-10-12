@@ -1,0 +1,11 @@
+[project]
+name = "scriptorium-windows-ocr"
+version = "0.0.0"
+description = "scriptorium's OCR worker for the OCR built into Windows (Windows.Media.Ocr)"
+requires-python = ">=3.10"
+dependencies = ["winocr>=0.0.15", "pillow"]
+
+[tool.uv]
+package = false
+# It runs on Windows only (through the Windows Runtime).
+environments = ["sys_platform == 'win32'"]

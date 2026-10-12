@@ -1,0 +1,8 @@
+# The workers run in environments of their own, on Python 3.10 or later (see ocr_worker.py):
+# keep them to what 3.10 understands.
+extend = "../pyproject.toml"
+target-version = "py310"
+
+[lint.isort]
+# Some workers' folders are named after their engines, which are installed packages.
+known-third-party = ["yomitoku", "paddleocr"]

@@ -1,0 +1,13 @@
+# Keep the workflows' actions up to date: they're pinned to commits (see ci.yml), so nothing
+# moves them otherwise. Once a month, one pull request for all of them. The package's own
+# dependencies aren't updated here (uv.lock is raised by hand); Dependabot's security updates
+# still cover them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Environments: the project's, and each worker's (workers/*/.venv)
+.venv
+
+# Tools
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# What's read, and anything else kept while trying things out
+data/
+
+# Editors and systems
+.idea/
+.vscode/
+.DS_Store
+
+# Scans and PDFs hold the text of real documents, wherever they're placed in the working
+# tree (the tests write theirs to temporary folders). The patterns match any case (Git tells
+# case apart on Linux). A file that belongs in the repository can be added with `git add -f`.
+*.[pP][dD][fF]
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[bB][mM][pP]
+*.[wW][eE][bB][pP]
+*.[hH][eE][iI][cC]
+# Dumps of what was read (`ocr dump-text`, `pdf.write_dump`).
+*.csv
