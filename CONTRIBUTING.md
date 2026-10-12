@@ -38,7 +38,7 @@ covers; links in English documents point to it all the same.
 ## Releases
 
 - Versions are `0.MINOR.PATCH` for now. A release sets `version` in `pyproject.toml`, is tagged
-  `vX.Y.Z` on `master`, and has its notes in a GitHub Release.
+  `vX.Y.Z` on `master`, and has its notes in a GitHub Release, in English only.
 - The projects using scriptorium depend on a tag. Breaking changes (a command or option renamed
   or removed, `OcrConfig` or `ProgramNames` changed, an import moved) raise MINOR and are listed in the
   release notes.

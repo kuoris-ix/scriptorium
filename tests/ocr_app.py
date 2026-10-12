@@ -44,7 +44,7 @@ def config() -> OcrConfig:
         worker_pages=int(_setting("worker_pages", "1000")),
         origins={
             name: PREFIX + name.upper()
-            for name in ("engines", "device", "orient", "preprocess")
+            for name in ("engines", "device", "orient", "preprocess", "workers_dir")
             if PREFIX + name.upper() in os.environ
         },
     )

@@ -190,6 +190,26 @@ def test_engines_lists_every_engine() -> None:
     assert "fake           not installed yet" in output
 
 
+def test_the_workers_folder_is_shown_in_full_with_where_it_s_from(
+    scans: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workers = Path.cwd() / "workers"
+
+    _, listed = invoke("list-engines")
+    monkeypatch.setenv("TEST_OCR_WORKERS_DIR", str(Path("data", "..", "workers")))
+    _, listed_as_set = invoke("list-engines")
+    _, checked = invoke("check-engines")
+    _, read = invoke("run", str(scans), "-e", "fake")
+
+    assert listed.splitlines()[0] == f"Using: workers {workers} (default)"
+    assert listed_as_set.splitlines()[0] == f"Using: workers {workers} (TEST_OCR_WORKERS_DIR)"
+    assert f"fake           not installed yet (uv sync --project {workers / 'fake'})" in listed
+    assert checked.splitlines()[0] == (
+        f"Using: device auto (default); workers {workers} (TEST_OCR_WORKERS_DIR)"
+    )
+    assert read.splitlines()[0].endswith(f"; workers {workers} (TEST_OCR_WORKERS_DIR)")
+
+
 def test_a_changed_resolution_range_reads_the_pages_again(
     isolated_settings: Path, scans: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

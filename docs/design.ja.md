@@ -540,7 +540,7 @@ workers/
 | `orient` | （なし） | `--orient` を付けないときの、向きを判定するエンジン（`tesseract`） |
 | `orient_min_confidence` | `5` | これより確からしさの低い判定では回さない |
 | `preprocess` | （なし） | `--preprocess` を付けないときの前処理（`flatten,deskew` など） |
-| `origins` | （なし） | `engines`・`device`・`orient`・`preprocess` の出どころ（「`MYAPP_OCR_ENGINES` in .env」など）。各コマンドが最初に表示する |
+| `origins` | （なし） | `engines`・`device`・`orient`・`preprocess`・`workers_dir` の出どころ（「`MYAPP_OCR_ENGINES` in .env」など）。各コマンドが最初に表示する（`workers_dir` は `..` の無い絶対パスにして） |
 
 `ProgramNames` は、ヘルプとメッセージに出す、使う側のコマンド名（`command`、例: `myapp ocr`）・設定の環境変数の頭
 （`settings_prefix`、例: `MYAPP_OCR_`）・PDF のパスワードの環境変数の名前（`password_variable`、例: `MYAPP_PDF_PASSWORD`）。
@@ -574,6 +574,14 @@ workers/
    （設定は自分の環境変数から読み、架空の書類も持つ）。`engine-setup` の手順の `myapp` も、これに置き換えられる
 5. **docs の英訳**: `design`・`benchmark`・`benchmark-results` の英語版（`<名前>.md`）は、準備中の注記と概要だけ。
    訳したら、注記と概要を本文に置き換える
+6. **文字の層のある PDF を正解にした採点**: システムが出力した PDF（明細など）は、文字の層がそのまま正解になる。
+   そのページを `ocr run --force` で OCR にもかけ、文字の層の語（`pdfplumber`）と比べて、金額・日付・項目名を
+   正しく読めた割合を出す（例: `ocr score-engines --against-text-layer`）。架空の書類ではわからない、実際に使う
+   書類のレイアウトでの精度が、中身を見せずに割合だけでわかる。仕組みは、文字の層のある架空の PDF のテストで
+   作れる。急がない
+7. **Apple Vision の worker の設定**: 言語の補正を切る（ocrmac からは切れないので、Vision を直接呼ぶ）、
+   `livetext` で塊を行ごとにする（`unit: "line"`）。補正を切ると数字を別の数字に「直さ」なくなるが、正しく読める
+   数は同じ（[測った結果](benchmark-results.ja.md) の Apple Vision）。照合役に使わないうちは急がない
 
 ## 16. 速さ（後で入れる改善）
 
