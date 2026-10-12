@@ -4,9 +4,9 @@
 
 `benchmark.ja.md` の計画で、架空の書類を読ませた結果。架空の書類だけの結果なので、読み違えた値もそのまま載せている。
 
-再現のしかたのコマンドの `myapp` と `MYAPP_OCR_*` は、scriptorium の `ocr` コマンドを付けたプログラムと、その設定
-（README の「プロジェクトで使う」）。`MYAPP_OCR_DIR` は `OcrConfig.ocr_dir`、`MYAPP_OCR_WORKER_PAGES` は
-`OcrConfig.worker_pages` に渡すもの。
+再現のしかたのコマンドは、clone の中で動かす `scriptorium` コマンドと、その設定（`SCRIPTORIUM_*`、README の
+「試す」）で書いた。scriptorium の `ocr` コマンドを付けたプログラムでも同じ（`myapp ocr run` など。設定はその
+プログラムのもの）。
 
 ## Tesseract（基準）
 
@@ -104,13 +104,13 @@
 ### 再現のしかた
 
 ```bash
-myapp ocr make-samples data/benchmark --count 2 --seed 1
-myapp ocr run data/benchmark -e tesseract
-myapp ocr run data/benchmark -e tesseract --orient tesseract
-myapp ocr score-engines data/benchmark -e tesseract
-myapp ocr score-engines data/benchmark -e tesseract --orient tesseract
-myapp ocr run data/benchmark -e tesseract --orient tesseract --preprocess flatten,deskew
-myapp ocr score-engines data/benchmark -e tesseract --orient tesseract --preprocess flatten,deskew
+uv run scriptorium make-samples data/benchmark --count 2 --seed 1
+uv run scriptorium run data/benchmark -e tesseract
+uv run scriptorium run data/benchmark -e tesseract --orient tesseract
+uv run scriptorium score-engines data/benchmark -e tesseract
+uv run scriptorium score-engines data/benchmark -e tesseract --orient tesseract
+uv run scriptorium run data/benchmark -e tesseract --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/benchmark -e tesseract --orient tesseract --preprocess flatten,deskew
 ```
 
 フォントが違うと（ヒラギノ・游ゴシックなど）、書類の見た目と結果が少し変わる。同じ環境のエンジン同士で比べる。
@@ -184,9 +184,9 @@ NDLOCR-Lite の時間（9.2 秒）は、モデルを読み込んだままにす�
 ### 再現のしかた
 
 ```bash
-myapp ocr make-samples data/ocr-trial --count 1
-myapp ocr run data/ocr-trial -e all
-myapp ocr score-engines data/ocr-trial -e all --markdown
+uv run scriptorium make-samples data/ocr-trial --count 1
+uv run scriptorium run data/ocr-trial -e all
+uv run scriptorium score-engines data/ocr-trial -e all --markdown
 ```
 
 ## Windows: 向きの判定と前処理
@@ -260,7 +260,7 @@ flatten,deskew`）読ませた結果。
 ### 前処理を 1 つずつ（PaddleOCR・NDLOCR-Lite）
 
 前処理で悪くなった 2 つのエンジンで、どの前処理のせいかを分けて読ませた。どれも `--orient tesseract` を付け、保存先を
-分けて（`MYAPP_OCR_DIR=data/ocr-extra`）読み直した。
+分けて（`SCRIPTORIUM_DIR=data/ocr-extra`）読み直した。
 
 PaddleOCR（64 ページ）:
 
@@ -290,12 +290,12 @@ NDLOCR-Lite（写真・傾き・照明のむらの 16 ページ: `photo`・`slan
 ### 再現のしかた
 
 ```bash
-myapp ocr run data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew
-myapp ocr score-engines data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew --markdown
+uv run scriptorium run data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew --markdown
 # 前処理を 1 つずつ（保存先を分けて）
-export MYAPP_OCR_DIR=data/ocr-extra
-myapp ocr run data/ocr-trial -e paddleocr --orient tesseract --preprocess flatten
-myapp ocr score-engines data/ocr-trial -e paddleocr --orient tesseract --preprocess flatten
+export SCRIPTORIUM_DIR=data/ocr-extra
+uv run scriptorium run data/ocr-trial -e paddleocr --orient tesseract --preprocess flatten
+uv run scriptorium score-engines data/ocr-trial -e paddleocr --orient tesseract --preprocess flatten
 ```
 
 ## Windows: 256 ページ
@@ -419,19 +419,19 @@ yomitoku-lite は `blur` 98.7% / 100.0%・`150` 99.2% / 100.0%・`pdf150` 97.5% 
 ### 再現のしかた
 
 ```bash
-myapp ocr make-samples data/ocr-bench4 --count 4 --seed 1
-myapp ocr run data/ocr-bench4 -e all
-myapp ocr score-engines data/ocr-bench4 -e all --markdown
-myapp ocr run data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew
-myapp ocr score-engines data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew --markdown
-myapp ocr run data/ocr-bench4 -e yomitoku -e yomitoku-lite -e paddleocr --orient tesseract
-myapp ocr score-engines data/ocr-bench4 -e yomitoku -e yomitoku-lite -e paddleocr --orient tesseract --markdown
+uv run scriptorium make-samples data/ocr-bench4 --count 4 --seed 1
+uv run scriptorium run data/ocr-bench4 -e all
+uv run scriptorium score-engines data/ocr-bench4 -e all --markdown
+uv run scriptorium run data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew --markdown
+uv run scriptorium run data/ocr-bench4 -e yomitoku -e yomitoku-lite -e paddleocr --orient tesseract
+uv run scriptorium score-engines data/ocr-bench4 -e yomitoku -e yomitoku-lite -e paddleocr --orient tesseract --markdown
 ```
 
 ## Windows: GPU のエンジンを CPU で
 
 GPU で動かしていたエンジン（yomitoku・yomitoku-lite・PaddleOCR）を `--device cpu` で読ませた結果。保存のキーに装置が
-入っていないので、保存先を分けて（`MYAPP_OCR_DIR=data/ocr-cpu`）読んだ。
+入っていないので、保存先を分けて（`SCRIPTORIUM_DIR=data/ocr-cpu`）読んだ。
 
 ### 条件
 
@@ -469,8 +469,8 @@ GPU で動かしていたエンジン（yomitoku・yomitoku-lite・PaddleOCR）�
 ### 再現のしかた
 
 ```bash
-MYAPP_OCR_DIR=data/ocr-cpu myapp ocr run data/ocr-trial -e yomitoku -e yomitoku-lite -e paddleocr --device cpu
-MYAPP_OCR_DIR=data/ocr-cpu myapp ocr score-engines data/ocr-trial -e yomitoku -e yomitoku-lite -e paddleocr --markdown
+SCRIPTORIUM_DIR=data/ocr-cpu uv run scriptorium run data/ocr-trial -e yomitoku -e yomitoku-lite -e paddleocr --device cpu
+SCRIPTORIUM_DIR=data/ocr-cpu uv run scriptorium score-engines data/ocr-trial -e yomitoku -e yomitoku-lite -e paddleocr --markdown
 ```
 
 ## Windows: 長い実行（1,600 ページ）
@@ -571,12 +571,12 @@ MYAPP_OCR_DIR=data/ocr-cpu myapp ocr score-engines data/ocr-trial -e yomitoku -e
 ### 再現のしかた
 
 ```bash
-myapp ocr make-samples data/ocr-long --count 25 --seed 2
-myapp ocr run data/ocr-long -e paddleocr    # 途中で止めて、もう一度同じコマンドで続きから
-myapp ocr run data/ocr-long -e yomitoku-lite
-myapp ocr score-engines data/ocr-long -e paddleocr -e yomitoku-lite --markdown
+uv run scriptorium make-samples data/ocr-long --count 25 --seed 2
+uv run scriptorium run data/ocr-long -e paddleocr    # 途中で止めて、もう一度同じコマンドで続きから
+uv run scriptorium run data/ocr-long -e yomitoku-lite
+uv run scriptorium score-engines data/ocr-long -e paddleocr -e yomitoku-lite --markdown
 # 同じページの繰り返しでメモリが増えるか（保存先を分けて。同じフォルダを 20 回渡すと 1 つの worker で 20 回読む）
-MYAPP_OCR_DIR=data/ocr-extra myapp ocr run $(printf 'data/ocr-trial %.0s' {1..20}) -e yomitoku-lite --reread
+SCRIPTORIUM_DIR=data/ocr-extra uv run scriptorium run $(printf 'data/ocr-trial %.0s' {1..20}) -e yomitoku-lite --reread
 ```
 
 メモリは、別のターミナルで python のプロセス（`workers\yomitoku\worker.py` を動かしているもの）の working set を
@@ -706,14 +706,14 @@ PaddleOCR の誤りはマイナスの記号を落とすもので、値が違う�
 
 ```bash
 for e in yomitoku-lite paddleocr yomitoku ndlocr-lite; do
-  myapp ocr run data/ocr-long -e $e --orient tesseract
+  uv run scriptorium run data/ocr-long -e $e --orient tesseract
 done
 for e in windows-ocr tesseract; do
-  myapp ocr run data/ocr-long -e $e --orient tesseract --preprocess flatten,deskew
+  uv run scriptorium run data/ocr-long -e $e --orient tesseract --preprocess flatten,deskew
 done
-myapp ocr score-engines data/ocr-long -e yomitoku -e yomitoku-lite -e paddleocr -e ndlocr-lite --orient tesseract --markdown
-myapp ocr score-engines data/ocr-long -e windows-ocr -e tesseract --orient tesseract --preprocess flatten,deskew --markdown
-myapp ocr diff-engines data/ocr-long -e yomitoku-lite -e paddleocr --orient tesseract --digits
+uv run scriptorium score-engines data/ocr-long -e yomitoku -e yomitoku-lite -e paddleocr -e ndlocr-lite --orient tesseract --markdown
+uv run scriptorium score-engines data/ocr-long -e windows-ocr -e tesseract --orient tesseract --preprocess flatten,deskew --markdown
+uv run scriptorium diff-engines data/ocr-long -e yomitoku-lite -e paddleocr --orient tesseract --digits
 ```
 
 照合の数（正解の行ごとの突き合わせ）は、`ocr score-engines` の採点（`compare.score_page`）と `ocr diff-engines` のまとめ方
@@ -747,8 +747,8 @@ myapp ocr diff-engines data/ocr-long -e yomitoku-lite -e paddleocr --orient tess
   （`--digits` では 3 件）
 
 ```bash
-myapp ocr score-engines data/ocr-long -e yomitoku-lite -e paddleocr -e ndlocr-lite --orient tesseract --agreement --markdown
-myapp ocr score-engines data/ocr-long -e yomitoku-lite -e paddleocr --orient tesseract --agreement --digits
+uv run scriptorium score-engines data/ocr-long -e yomitoku-lite -e paddleocr -e ndlocr-lite --orient tesseract --agreement --markdown
+uv run scriptorium score-engines data/ocr-long -e yomitoku-lite -e paddleocr --orient tesseract --agreement --digits
 ```
 
 ## Mac（すべてのエンジン）
@@ -898,7 +898,7 @@ worker のプロセスの CPU 使用率（100% がコア 1 つ分）を 15 秒�
 - PaddleOCR の worker のメモリは、ページの大きさで 5〜16GB を上下する（600dpi の明細で最大）。ページを読み終えると戻り、
   増え続けない
 
-**yomitoku・yomitoku-lite を CPU で**（`--device cpu`、保存先を分けて `MYAPP_OCR_DIR=data/ocr-cpu`、向きの判定あり）:
+**yomitoku・yomitoku-lite を CPU で**（`--device cpu`、保存先を分けて `SCRIPTORIUM_DIR=data/ocr-cpu`、向きの判定あり）:
 
 | エンジン | MPS | CPU |
 |---|---|---|
@@ -923,18 +923,18 @@ worker のプロセスの CPU 使用率（100% がコア 1 つ分）を 15 秒�
 ```bash
 brew install tesseract tesseract-lang
 for w in tesseract apple_vision yomitoku ndlocr_lite paddleocr; do uv sync --project workers/$w; done
-myapp ocr check-engines
+uv run scriptorium check-engines
 # 書類は Windows の data/ocr-trial をコピーしたもの
-nohup caffeinate -i myapp ocr run data/ocr-trial -e all > data/ocr/mac-trial.txt 2>&1 &
-nohup caffeinate -i myapp ocr run data/ocr-trial -e all --orient tesseract > data/ocr/mac-trial-orient.txt 2>&1 &
-myapp ocr score-engines data/ocr-trial -e all --markdown
-myapp ocr score-engines data/ocr-trial -e all --orient tesseract --markdown
-myapp ocr run data/ocr-trial -e tesseract -e apple-vision --orient tesseract --preprocess flatten,deskew
-myapp ocr score-engines data/ocr-trial -e tesseract -e apple-vision --orient tesseract --preprocess flatten,deskew --markdown
-myapp ocr diff-engines data/ocr-trial -e yomitoku-lite -e apple-vision --orient tesseract --digits
+nohup caffeinate -i uv run scriptorium run data/ocr-trial -e all > data/ocr/mac-trial.txt 2>&1 &
+nohup caffeinate -i uv run scriptorium run data/ocr-trial -e all --orient tesseract > data/ocr/mac-trial-orient.txt 2>&1 &
+uv run scriptorium score-engines data/ocr-trial -e all --markdown
+uv run scriptorium score-engines data/ocr-trial -e all --orient tesseract --markdown
+uv run scriptorium run data/ocr-trial -e tesseract -e apple-vision --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/ocr-trial -e tesseract -e apple-vision --orient tesseract --preprocess flatten,deskew --markdown
+uv run scriptorium diff-engines data/ocr-trial -e yomitoku-lite -e apple-vision --orient tesseract --digits
 # CPU で（保存先を分けて）
-MYAPP_OCR_DIR=data/ocr-cpu myapp ocr run data/ocr-trial -e yomitoku -e yomitoku-lite --orient tesseract --device cpu
-MYAPP_OCR_DIR=data/ocr-cpu myapp ocr score-engines data/ocr-trial -e yomitoku -e yomitoku-lite --orient tesseract --markdown
+SCRIPTORIUM_DIR=data/ocr-cpu uv run scriptorium run data/ocr-trial -e yomitoku -e yomitoku-lite --orient tesseract --device cpu
+SCRIPTORIUM_DIR=data/ocr-cpu uv run scriptorium score-engines data/ocr-trial -e yomitoku -e yomitoku-lite --orient tesseract --markdown
 ```
 
 2 回の `ocr run` は順に（1 回目が終わってから 2 回目を）流した。64 ページを 6 エンジンで読むのに、1 回あたり約 20 分
@@ -975,7 +975,7 @@ MYAPP_OCR_DIR=data/ocr-cpu myapp ocr score-engines data/ocr-trial -e yomitoku -e
 ### 長い実行（yomitoku-lite、MPS）
 
 同じ 64 ページを 1 つの worker で 20 回（1,280 ページ）読ませた。worker を起動し直す設定は切った
-（`MYAPP_OCR_WORKER_PAGES=0`）。worker のメモリ（RSS）を 1 分ごとに記録した。
+（`SCRIPTORIUM_WORKER_PAGES=0`）。worker のメモリ（RSS）を 1 分ごとに記録した。
 
 | 読んだページ | 失敗 | 読むのにかかった時間 | 1 ページの時間（最初の 100 → 最後の 100） | worker の RSS（最小〜最大） |
 |---|---|---|---|---|
@@ -1000,12 +1000,12 @@ MYAPP_OCR_DIR=data/ocr-cpu myapp ocr score-engines data/ocr-trial -e yomitoku -e
 ### 再現のしかた
 
 ```bash
-nohup caffeinate -i myapp ocr run data/ocr-bench4 -e yomitoku-lite -e apple-vision -e yomitoku --orient tesseract > data/ocr/mac-bench4.txt 2>&1 &
-myapp ocr score-engines data/ocr-bench4 -e yomitoku-lite -e apple-vision -e yomitoku --orient tesseract --markdown
-myapp ocr diff-engines data/ocr-bench4 -e yomitoku-lite -e apple-vision --orient tesseract --digits | tail -1
+nohup caffeinate -i uv run scriptorium run data/ocr-bench4 -e yomitoku-lite -e apple-vision -e yomitoku --orient tesseract > data/ocr/mac-bench4.txt 2>&1 &
+uv run scriptorium score-engines data/ocr-bench4 -e yomitoku-lite -e apple-vision -e yomitoku --orient tesseract --markdown
+uv run scriptorium diff-engines data/ocr-bench4 -e yomitoku-lite -e apple-vision --orient tesseract --digits | tail -1
 # 長い実行（保存先を分けて。同じフォルダを 20 回渡すと 1 つの worker で 20 回読む）
-MYAPP_OCR_DIR=data/ocr-extra MYAPP_OCR_WORKER_PAGES=0 nohup caffeinate -i \
-  myapp ocr run $(printf 'data/ocr-trial %.0s' {1..20}) -e yomitoku-lite --reread > data/ocr/mac-mem-run.txt 2>&1 &
+SCRIPTORIUM_DIR=data/ocr-extra SCRIPTORIUM_WORKER_PAGES=0 nohup caffeinate -i \
+  uv run scriptorium run $(printf 'data/ocr-trial %.0s' {1..20}) -e yomitoku-lite --reread > data/ocr/mac-mem-run.txt 2>&1 &
 ```
 
 メモリは、別のターミナルで worker（`workers/yomitoku/worker.py` を動かしている python）の RSS を `ps` で 1 分ごとに、

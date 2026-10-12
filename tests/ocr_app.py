@@ -2,16 +2,16 @@
 
 It reads its settings as a program would (each from its variable, else its
 default; paths relative to the working directory) and tells where each comes
-from, and has the fictional documents of `sample_documents`.
+from, and has the fictional documents of `scriptorium.fictional`.
 """
 
 import os
 from pathlib import Path
 from typing import cast
 
-import sample_documents
 import typer
 
+from scriptorium import fictional
 from scriptorium.commands import make_app
 from scriptorium.config import OcrConfig, ProgramNames
 from scriptorium.models import DEVICES, ORIENT_MIN_CONFIDENCE, Device
@@ -32,8 +32,8 @@ def config() -> OcrConfig:
     return OcrConfig(
         ocr_dir=Path(_setting("dir", "data/ocr")).absolute(),
         workers_dir=Path(_setting("workers_dir", "workers")).absolute(),
-        documents=sample_documents.DOCUMENTS,
-        check_document=sample_documents.receipt,
+        documents=fictional.DOCUMENTS,
+        check_document=fictional.receipt,
         engines=_setting("engines", ""),
         device=cast(Device, device),
         orient=_setting("orient", ""),

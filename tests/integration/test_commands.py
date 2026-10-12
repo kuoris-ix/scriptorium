@@ -12,14 +12,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-import sample_documents
 import typer
 from ocr_app import app
 from ocr_files import a4_scan, flatbed, form, scan, write_pdf
 from PIL import Image, ImageFont
 from typer.testing import CliRunner
 
-from scriptorium import engines, samples, worker
+from scriptorium import engines, fictional, samples, worker
 from scriptorium.engines import Engine
 from scriptorium.models import EngineInfo, OcrPage, OcrWord, StoredPage
 from scriptorium.store import RunKey, Store
@@ -237,7 +236,7 @@ def test_samples_writes_documents_with_their_truth(
     code, output = invoke("make-samples", str(folder), "--count", "2", "--font", __file__)
 
     assert code == 0, output
-    count = len(sample_documents.DOCUMENTS) * 2
+    count = len(fictional.DOCUMENTS) * 2
     assert f"{count} sample(s) written" in output
     assert len(list(folder.glob("*.truth.json"))) == count
 
@@ -252,7 +251,7 @@ def test_compare_scores_what_was_read_against_the_truth(
             folder,
             ImageFont.load_default,
             count=1,
-            documents={"invoice": sample_documents.DOCUMENTS["invoice"]},
+            documents={"invoice": fictional.DOCUMENTS["invoice"]},
             variants=variants,
         )
     )
@@ -303,7 +302,7 @@ def test_compare_tells_when_nothing_was_read(isolated_settings: Path) -> None:
             folder,
             ImageFont.load_default,
             count=1,
-            documents={"receipt": sample_documents.DOCUMENTS["receipt"]},
+            documents={"receipt": fictional.DOCUMENTS["receipt"]},
             variants=[samples.Variant("150", dpi=150)],
         )
     )
@@ -390,7 +389,7 @@ def test_compare_writes_markdown_tables(isolated_settings: Path) -> None:
         folder,
         ImageFont.load_default,
         count=1,
-        documents={"receipt": sample_documents.DOCUMENTS["receipt"]},
+        documents={"receipt": fictional.DOCUMENTS["receipt"]},
         variants=[samples.Variant("150", dpi=150)],
     )
     truth = samples.load_truth(path)
@@ -420,7 +419,7 @@ def test_compare_agreement_counts_what_cross_checking_would_find(
         folder,
         ImageFont.load_default,
         count=1,
-        documents={"receipt": sample_documents.DOCUMENTS["receipt"]},
+        documents={"receipt": fictional.DOCUMENTS["receipt"]},
         variants=[samples.Variant("150", dpi=150)],
     )
     truth = samples.load_truth(path)
@@ -466,7 +465,7 @@ def test_compare_agreement_needs_two_engines_that_read_a_sample(isolated_setting
             folder,
             ImageFont.load_default,
             count=1,
-            documents={"receipt": sample_documents.DOCUMENTS["receipt"]},
+            documents={"receipt": fictional.DOCUMENTS["receipt"]},
             variants=[samples.Variant("150", dpi=150)],
         )
     )

@@ -5,7 +5,8 @@
 スキャンした書類（画像と、画像だけの PDF）を OCR のエンジンで読み、読んだ結果を保存する道具です。エンジンは
 それぞれ専用の環境で動かします。給与明細・レシート・税の書類のような日本語の書類のために作りました。Python の
 ライブラリで、自分のプロジェクトに組み込んで使います。プロジェクトのコマンド（Typer のアプリ）に `ocr` の
-コマンドを付け、読んだ結果はプロジェクトのコードから読み出します。単独で動くコマンドは、今はありません。
+コマンドを付け、読んだ結果はプロジェクトのコードから読み出します。試すときやエンジンを比べるときは、同じコマンドを
+`scriptorium` として単独で動かせます。
 
 - 複数のエンジン（YomiToku・PaddleOCR・NDLOCR-Lite・Apple Vision・Windows の OCR・Tesseract）を並べて使えます。
   エンジンはそれぞれ自分の Python の環境で動き、小さな JSON のやりとりで話します。
@@ -23,13 +24,46 @@
 - エンジンの環境: YomiToku・PaddleOCR・NDLOCR-Lite は Python 3.10〜3.13 が要ります（uv が取ってきます）。ライブラリと
   モデルで数 GB のディスクを使います
 
+## 試す
+
+`scriptorium` コマンドは、同じコマンドを単独で動かします。エンジンを採点するための架空の書類も持っています。
+clone の中で動かします:
+
+```sh
+git clone https://github.com/kuoris-ix/scriptorium
+cd scriptorium
+uv sync
+uv sync --project workers/yomitoku                          # エンジン（「エンジンを入れる」）
+uv run scriptorium check-engines                            # 動くか
+uv run scriptorium make-samples data/ocr-trial --count 1    # 正解付きの架空の書類
+uv run scriptorium run data/ocr-trial -e yomitoku           # 読む
+uv run scriptorium score-engines data/ocr-trial             # どれだけ正しく読めたか
+```
+
+`uv run scriptorium --help` でコマンドを一覧できます。設定は `SCRIPTORIUM_*` の変数で、環境変数から、無ければ
+作業フォルダの `.env` から読みます。パスは作業フォルダからの相対です。各コマンドは、使う設定とその出どころを最初に
+表示します。
+
+| 変数 | 既定 | 内容 |
+|---|---|---|
+| `SCRIPTORIUM_DIR` | `data/ocr` | 読んだ結果の保存先 |
+| `SCRIPTORIUM_WORKERS_DIR` | clone の `workers/` | エンジンの worker |
+| `SCRIPTORIUM_ENGINES` | （なし） | `-e` を付けないときのエンジン（カンマ区切り） |
+| `SCRIPTORIUM_DEVICE` | `auto` | `auto`・`cpu`・`cuda`・`mps` |
+| `SCRIPTORIUM_ORIENT` | （なし） | ページの向きを判定するエンジン（`tesseract`） |
+| `SCRIPTORIUM_ORIENT_MIN_CONFIDENCE` | `5` | これより確からしさの低い判定では回さない |
+| `SCRIPTORIUM_PREPROCESS` | （なし） | 読む前の処理（カンマ区切り。`flatten,deskew` など） |
+| `SCRIPTORIUM_MIN_DPI`・`SCRIPTORIUM_MAX_DPI` | `300`・`600` | スキャンのページを描き直す解像度の範囲 |
+| `SCRIPTORIUM_WORKER_PAGES` | `1000` | worker をこのページ数ごとに起動し直す（`0` で起動し直さない） |
+| `SCRIPTORIUM_PDF_PASSWORD` | （なし） | 保護された PDF のパスワード |
+
 ## プロジェクトで使う
 
 タグを付けたリリースを依存に書きます:
 
 ```toml
 [project]
-dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.1.0"]
+dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.2.0"]
 ```
 
 そして、自分の設定（`OcrConfig`）と、ヘルプやメッセージに出すコマンド名・環境変数名（`ProgramNames`）を渡して、
@@ -38,6 +72,7 @@ Typer のアプリにコマンドを付けます:
 ```python
 from pathlib import Path
 
+from scriptorium import fictional
 from scriptorium.commands import make_app
 from scriptorium.config import OcrConfig, ProgramNames
 
@@ -47,8 +82,10 @@ def config() -> OcrConfig:
     return OcrConfig(
         ocr_dir=Path("data/ocr").absolute(),
         workers_dir=Path("~/scriptorium/workers").expanduser(),
-        documents=MY_SAMPLE_DOCUMENTS,  # `ocr make-samples` で作る架空の書類
-        check_document=MY_SAMPLE_DOCUMENTS["receipt"],  # `ocr check-engines` で読ませるもの
+        # `ocr make-samples` で作る架空の書類（scriptorium のものか自分のもの）と、
+        # `ocr check-engines` で読ませるもの。
+        documents=fictional.DOCUMENTS,
+        check_document=fictional.receipt,
         engines="yomitoku-lite",
     )
 
@@ -91,7 +128,7 @@ scriptorium はエンジンを含みません。各 worker の `pyproject.toml` 
 
 ## 保存するものとプライバシー
 
-読んだものはすべて、手元の `OcrConfig.ocr_dir` に残ります。中身は書類の文字で、JSON のファイルです。この
+読んだものはすべて、手元の `OcrConfig.ocr_dir`（`SCRIPTORIUM_DIR`）に残ります。中身は書類の文字で、JSON のファイルです。この
 フォルダは、スキャンと同じように扱ってください。`ocr remove-missing` で、消したファイルから読んだ結果を消せます。
 
 ## 開発

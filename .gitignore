@@ -9,6 +9,9 @@ wheels/
 # Environments: the project's, and each worker's (workers/*/.venv)
 .venv
 
+# The `scriptorium` command's settings (a PDF's password may be in there)
+.env
+
 # Tools
 .mypy_cache/
 .pytest_cache/

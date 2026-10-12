@@ -44,8 +44,8 @@
 `ocr make-samples` で作る（`src/scriptorium/samples.py`）:
 
 ```bash
-myapp ocr make-samples data/benchmark --count 2          # 種類ごとに 2 通り × 劣化 16 通り = 128 ページ
-myapp ocr make-samples data/benchmark --count 4 --seed 7 # 256 ページ。種を変えると別の値になる
+uv run scriptorium make-samples data/benchmark --count 2          # 種類ごとに 2 通り × 劣化 16 通り = 128 ページ
+uv run scriptorium make-samples data/benchmark --count 4 --seed 7 # 256 ページ。種を変えると別の値になる
 ```
 
 - **すべて架空の値で作る**（CONTRIBUTING.md）。店名・品名・会社名は架空の一覧から、金額・日付・番号は乱数で作る
@@ -122,8 +122,8 @@ myapp ocr make-samples data/benchmark --count 4 --seed 7 # 256 ページ。種�
 ほかの所で読んだ数、1 ページあたりの時間（全体と劣化ごと）。位置の精度・確からしさの役立ち方・メモリは、まだ出さない。
 
 ```bash
-myapp ocr run data/benchmark -e yomitoku -e tesseract   # 読む（放置してよい）
-myapp ocr score-engines data/benchmark                        # 読んだエンジンごとに採点する
+uv run scriptorium run data/benchmark -e yomitoku -e tesseract   # 読む（放置してよい）
+uv run scriptorium score-engines data/benchmark                        # 読んだエンジンごとに採点する
 ```
 
 | 指標 | 内容 | 重み |

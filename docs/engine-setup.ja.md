@@ -2,43 +2,46 @@
 
 [English](engine-setup.md) | 日本語
 
-手元の Mac・Windows・Linux で、各エンジンの worker（`workers/`）を入れ、架空の書類を `ocr run` で読ませて、入れ方の
+手元の Mac・Windows・Linux で、各エンジンの worker（`workers/`）を入れ、架空の書類を `scriptorium run` で読ませて、入れ方の
 問題と読み取りの様子を確かめる手順。
 
 Windows（6 エンジン）と Mac（Windows の OCR を除く 6 エンジン）では、この手順で動かして確かめ、動かなかったところは
 直してある（2026-10、結果は `benchmark-results.ja.md`）。Linux はまだ。新しい環境・新しい版で動かなかったら、エラーや
 ログをそのまま Issue に貼れば、直す材料になる。
 
-コマンドの `myapp` は、scriptorium の `ocr` コマンドを付けたプログラム（README の「プロジェクトで使う」）。
+コマンドは clone の中で、`scriptorium` コマンド（`uv run scriptorium`、README の「試す」）で動かす。scriptorium の
+`ocr` コマンドを付けたプログラムにも同じコマンドがある（`myapp ocr run` など。設定はそのプログラムのもの）。
 
 ## 0. 準備
 
 ### 守ること
 
 - **実データは使わない。** 下の手順で作る架空の書類だけを読ませる
-- 読んだ結果は、プログラムが渡す `OcrConfig.ocr_dir` に保存される（Git の管理外に置く）。下の例では `data/ocr/`
+- 読んだ結果は clone の `data/ocr/` に保存される（`SCRIPTORIUM_DIR`。`data/` は Git の管理外）
 
 ### scriptorium を用意する
 
-worker は、このリポジトリを PC に 1 つ clone した中の `workers/` で動かす（各プログラムは `OcrConfig.workers_dir`
-でそこを指す）。
+worker は、このリポジトリを PC に 1 つ clone した中の `workers/` で動かす（scriptorium を使う各プログラムは
+`OcrConfig.workers_dir` でそこを指す）。下のコマンドは clone の中で動かす。
 
 ```bash
 git clone https://github.com/kuoris-ix/scriptorium
-myapp ocr list-engines
+cd scriptorium
+uv sync
+uv run scriptorium list-engines
 ```
 
-`ocr list-engines` は、エンジンごとに「この環境で使えるか」を表示する（`runs on macOS only` などは、その OS では使えない）。
+`scriptorium list-engines` は、エンジンごとに「この環境で使えるか」を表示する（`runs on macOS only` などは、その OS では使えない）。
 
 ### 架空の書類を用意する
 
-**まずは生成したもの**で試す（正解付きなので、`ocr score-engines` で数字が出る）:
+**まずは生成したもの**で試す（正解付きなので、`scriptorium score-engines` で数字が出る）:
 
 ```bash
-myapp ocr make-samples data/ocr-trial --count 1
+uv run scriptorium make-samples data/ocr-trial --count 1
 ```
 
-プログラムの架空の書類（例えばレシート・カードの明細・請求書・通帳）を、劣化（低い解像度・傾き・回転・JPEG・ノイズ・影・PDF など）
+scriptorium の架空の書類（レシート・カードの明細・請求書・通帳）を、劣化（低い解像度・傾き・回転・JPEG・ノイズ・影・PDF など）
 16 通りで作る（64 ページ）。重いエンジンを CPU で動かすと時間がかかるので、最初は数枚だけのフォルダ（例:
 `*-300.png` と `*-turned90.png` だけを別のフォルダにコピーしたもの）で試してから、全部を読ませるとよい。
 
@@ -60,17 +63,17 @@ myapp ocr make-samples data/ocr-trial --count 1
 （動かないエンジンは `FAILED` と、ログの場所を表示する）:
 
 ```bash
-myapp ocr check-engines
+uv run scriptorium check-engines
 ```
 
 動いたら、入っているエンジン全部で読んで、比べた表を作れる。時間がかかるので放置してよい（下の「5. バックグラウンドで
 読ませる」）。
 
 ```bash
-myapp ocr run data/ocr-trial -e all                 # 入っているエンジン全部で順に読む
-myapp ocr score-engines data/ocr-trial --markdown   # 比べた表（Markdown）
-myapp ocr run data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew
-myapp ocr score-engines data/ocr-trial --orient tesseract --preprocess flatten,deskew --markdown
+uv run scriptorium run data/ocr-trial -e all                 # 入っているエンジン全部で順に読む
+uv run scriptorium score-engines data/ocr-trial --markdown   # 比べた表（Markdown）
+uv run scriptorium run data/ocr-trial -e all --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/ocr-trial --orient tesseract --preprocess flatten,deskew --markdown
 ```
 
 `-e all` は、この OS で動き、環境を作ってあるエンジンだけを使う（ほかは理由を表示して飛ばす）。`--markdown` の表は、
@@ -78,25 +81,25 @@ myapp ocr score-engines data/ocr-trial --orient tesseract --preprocess flatten,d
 
 ### 1 つずつ試す
 
-どのエンジンも、次の 3 つを行う。`<worker>` は `workers/` の下のフォルダ名、`<engine>` は `ocr list-engines` に出る名前。
+どのエンジンも、次の 3 つを行う。`<worker>` は `workers/` の下のフォルダ名、`<engine>` は `scriptorium list-engines` に出る名前。
 
 ```bash
-uv sync --project workers/<worker>                   # worker の環境を作る（初回は時間がかかる）
-myapp ocr run data/ocr-trial -e <engine>             # 読む（初回はモデルの取得で時間がかかる）
-myapp ocr score-engines data/ocr-trial -e <engine>   # 正解と比べて採点する
+uv sync --project workers/<worker>                            # worker の環境を作る（初回は時間がかかる）
+uv run scriptorium run data/ocr-trial -e <engine>             # 読む（初回はモデルの取得で時間がかかる）
+uv run scriptorium score-engines data/ocr-trial -e <engine>   # 正解と比べて採点する
 ```
 
-- `ocr run` は、エンジンの版・モデル・使った装置（cpu・cuda・mps）を最初に表示し、1 ページごとに読めた塊の数と
+- `scriptorium run` は、エンジンの版・モデル・使った装置（cpu・cuda・mps）を最初に表示し、1 ページごとに読めた塊の数と
   時間を表示する。最後にログファイルの場所を表示する（エラーの詳しい中身はそこにある）
-- 読んだ文字と位置を見るときは `myapp ocr dump-text data/ocr-trial -e <engine> -o data/ocr-trial/<engine>.csv`
+- 読んだ文字と位置を見るときは `uv run scriptorium dump-text data/ocr-trial -e <engine> -o data/ocr-trial/<engine>.csv`
 - **装置を変えて比べる**ときは、`--device cpu`（または `cuda`・`mps`）に `--reread` を付ける。保存のキーに装置は
   入らないので、付けないと読み直さない
 - **ページの向き**: 生成した書類には 90 度・180 度回したもの（`turned90`・`turned180`）がある。Tesseract を入れたら、
-  `--orient tesseract` を付けて読んだ場合（向きを判定し、正しい向きにしてから読む）も試し、`ocr score-engines` にも
+  `--orient tesseract` を付けて読んだ場合（向きを判定し、正しい向きにしてから読む）も試し、`scriptorium score-engines` にも
   `--orient tesseract` を付けて比べる（付けずに読んだものとは別に保存される）
 - **前処理**: 照明のむら（`shadow`・`photo`）や傾き（`slant`）のある書類で、`--preprocess flatten,deskew` を付けた
-  場合も試す。`ocr score-engines` にも同じものを付けて比べる
-- 失敗したページは、もう一度 `ocr run` すると読み直す。`myapp ocr status data/ocr-trial` で、どのページを
+  場合も試す。`scriptorium score-engines` にも同じものを付けて比べる
+- 失敗したページは、もう一度 `scriptorium run` すると読み直す。`uv run scriptorium status data/ocr-trial` で、どのページを
   どのエンジンで読んだかがわかる
 - `uv sync` で `workers/<worker>/uv.lock` が変わったら、その変更もコミットする
 
@@ -112,15 +115,15 @@ myapp ocr score-engines data/ocr-trial -e <engine>   # 正解と比べて採点�
 
 ```bash
 uv sync --project workers/tesseract
-myapp ocr run data/ocr-trial -e tesseract
+uv run scriptorium run data/ocr-trial -e tesseract
 ```
 
 ### yomitoku（Mac・Windows・Linux）
 
 ```bash
 uv sync --project workers/yomitoku
-myapp ocr run data/ocr-trial -e yomitoku
-myapp ocr run data/ocr-trial -e yomitoku-lite
+uv run scriptorium run data/ocr-trial -e yomitoku
+uv run scriptorium run data/ocr-trial -e yomitoku-lite
 ```
 
 - 初回は、モデルを Hugging Face から取ってくる
@@ -134,13 +137,13 @@ myapp ocr run data/ocr-trial -e yomitoku-lite
   `workers/yomitoku/pyproject.toml` の `cu128` を、PyTorch の公式サイトの選択欄
   （https://pytorch.org/get-started/locally/ ）に出る CUDA の版（`cu126`・`cu130` など）に変える
 - **Mac**: `auto` で MPS を使う。エラーになったら `--device cpu --reread` で CPU でも読ませて、両方の結果を貼る
-- `ocr run` の最初の行の装置が `cuda`（Windows）・`mps`（Mac）になっているかを見る
+- `scriptorium run` の最初の行の装置が `cuda`（Windows）・`mps`（Mac）になっているかを見る
 
 ### PaddleOCR（Mac・Windows・Linux）
 
 ```bash
 uv sync --project workers/paddleocr
-myapp ocr run data/ocr-trial -e paddleocr
+uv run scriptorium run data/ocr-trial -e paddleocr
 ```
 
 - 初回は、モデルを PaddlePaddle の配布元から取ってくる
@@ -159,7 +162,7 @@ Git が要る（uv が GitHub のリポジトリから取ってくる）。版�
 
 ```bash
 uv sync --project workers/ndlocr_lite
-myapp ocr run data/ocr-trial -e ndlocr-lite
+uv run scriptorium run data/ocr-trial -e ndlocr-lite
 ```
 
 - 「No module named 'ocr'」で起動できないと言われたら、NDLOCR-Lite の本体のモジュールの名前が違う（worker は
@@ -170,7 +173,7 @@ myapp ocr run data/ocr-trial -e ndlocr-lite
 
 ```bash
 uv sync --project workers/apple_vision
-myapp ocr run data/ocr-trial -e apple-vision
+uv run scriptorium run data/ocr-trial -e apple-vision
 ```
 
 - 日本語（`ja-JP`）が使えないと言われたら、エラーに出る言語の一覧を貼る
@@ -188,20 +191,20 @@ Get-WindowsCapability -Online | Where-Object Name -like 'Language.OCR*ja-JP*'
 
 ```powershell
 uv sync --project workers/windows_ocr
-myapp ocr run data/ocr-trial -e windows-ocr
+uv run scriptorium run data/ocr-trial -e windows-ocr
 ```
 
 - 600dpi の A4 は大きすぎて読めないことがある（Windows の OCR は 1 辺の画素数に上限がある）。そう言われたら、
-  解像度の上限（`OcrConfig.max_dpi`）を 400 などにして試す（保存のキーが変わるので、読み直しになる）
+  解像度の上限（`SCRIPTORIUM_MAX_DPI`）を 400 などにして試す（保存のキーが変わるので、読み直しになる）
 
 ## 2. 見ること
 
 エンジンと装置の組み合わせごとに、次を見る。
 
-- **入ったか・起動したか**: `uv sync` か `ocr run` のエラー（ログファイルの中身も）
-- **版と装置**: `ocr run` の最初の行
+- **入ったか・起動したか**: `uv sync` か `scriptorium run` のエラー（ログファイルの中身も）
+- **版と装置**: `scriptorium run` の最初の行
 - **時間**: 1 ページあたりのおよその時間（初回のモデルの取得・読み込みは除く）
-- **読めたか**: `ocr score-engines` の結果（金額・日付を正しく読めた割合、劣化ごとの表、読み違えた金額・日付の一覧）。
+- **読めたか**: `scriptorium score-engines` の結果（金額・日付を正しく読めた割合、劣化ごとの表、読み違えた金額・日付の一覧）。
   印刷したものは、ダンプの CSV を書類と見比べる
 - **塊の単位**: 行ごとか、単語（1〜2 文字）ごとか（ダンプの CSV で見る）
 
@@ -210,10 +213,10 @@ myapp ocr run data/ocr-trial -e windows-ocr
 エンジンと環境ごとに、次を Issue に貼る。架空の書類の結果なので、読み取った文字が
 そのまま入っていてよい。
 
-- `ocr run` の最初の行（版・モデル・装置）と最後の行
-- `ocr check-engines` の出力
-- `ocr score-engines --markdown` の出力（前処理なし・ありの 2 つ）
-- つまずいた点（`uv sync` や `ocr run` のエラー、ログファイルの中身）
+- `scriptorium run` の最初の行（版・モデル・装置）と最後の行
+- `scriptorium check-engines` の出力
+- `scriptorium score-engines --markdown` の出力（前処理なし・ありの 2 つ）
+- つまずいた点（`uv sync` や `scriptorium run` のエラー、ログファイルの中身）
 - 印刷したものを試したなら、気づいたこと
 
 ## 4. 後片付け
@@ -231,13 +234,13 @@ myapp ocr run data/ocr-trial -e windows-ocr
 - macOS・Linux:
 
   ```bash
-  nohup uv run myapp ocr run data/scan -e yomitoku > data/ocr/run.txt 2>&1 &
+  nohup uv run scriptorium run data/scan -e yomitoku > data/ocr/run.txt 2>&1 &
   ```
 
 - Windows（PowerShell）:
 
   ```powershell
-  Start-Process uv -ArgumentList 'run','myapp','ocr','run','data/scan','-e','yomitoku' -WindowStyle Hidden -RedirectStandardOutput data/ocr/run.txt
+  Start-Process uv -ArgumentList 'run','scriptorium','run','data/scan','-e','yomitoku' -WindowStyle Hidden -RedirectStandardOutput data/ocr/run.txt
   ```
 
 `data/ocr/run.txt` に進み具合が書かれる。

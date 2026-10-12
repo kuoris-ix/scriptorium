@@ -1,18 +1,15 @@
 import random
 
 import pytest
-import sample_documents
 from ocr_files import dark_box, scan
 from PIL import Image, ImageChops, ImageFont, ImageStat
 
-from scriptorium import preprocess, samples
+from scriptorium import fictional, preprocess, samples
 from scriptorium.samples import Variant
 
 
 def receipt(variant: Variant) -> Image.Image:
-    image, _ = samples.make(
-        sample_documents.receipt, random.Random("1"), variant, ImageFont.load_default
-    )
+    image, _ = samples.make(fictional.receipt, random.Random("1"), variant, ImageFont.load_default)
     return image
 
 
