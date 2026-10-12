@@ -42,7 +42,7 @@ from scriptorium.config import OcrConfig, ProgramNames
 from scriptorium.diff import Agreement, Count, groups
 from scriptorium.dump import FileRead, write_dump
 from scriptorium.engines import Engine
-from scriptorium.files import absolute_path
+from scriptorium.files import absolute_path, longest_path_allowed
 from scriptorium.models import Device, StoredPage
 from scriptorium.runner import Target
 from scriptorium.store import RunKey, Store
@@ -288,6 +288,27 @@ def _tell_read_otherwise(store: Store, targets: list[Target], keys: dict[str, Ru
             typer.echo(f"{name}: {count} file(s) read with other settings only ({how})", err=True)
 
 
+def _check_path_lengths(store: Store, keys: list[RunKey], naming: ProgramNames) -> None:
+    """Stop before reading if what's read couldn't be kept: its paths too long for Windows."""
+    allowed = longest_path_allowed()
+    if allowed is None:
+        return
+    longest = max(store.longest_path(key) for key in keys)
+    if longest <= allowed:
+        return
+    root = absolute_path(store.root)
+    typer.echo(
+        f"Error: the folder what's read is kept in is too deep: {root} "
+        f"({len(str(root))} characters). The paths in it would be up to {longest} characters "
+        f"long, and Windows takes {allowed} unless long paths are enabled. "
+        + naming.fill("Set {settings}DIR to a folder of at most ")
+        + f"{len(str(root)) - (longest - allowed)} characters, or enable long paths in Windows "
+        "(LongPathsEnabled).",
+        err=True,
+    )
+    raise typer.Exit(2)
+
+
 def run(
     ctx: typer.Context,
     paths: list[Path] = PATHS,
@@ -310,7 +331,9 @@ def run(
     読んだページは読み直さないので、止まった（失敗した）ときは、もう一度
     実行すれば続きから読む。時間がかかるので、裏で動かしておいてよい。
     読んだファイルの場所（絶対パス）も記録する（{command} remove-missing が使う）。
-    読めなかったページがあれば終了コード 1 で終わる。
+    読めなかったページがあれば終了コード 1 で終わる。保存先のパスが Windows
+    で長すぎる（長いパスを有効にしていなければ 259 文字まで）ときは、読む
+    前に終了コード 2 で止まる。
     """
     config = _config(ctx)
     chosen, engines_shown = _named(
@@ -325,10 +348,11 @@ def run(
         f"Using: engines {engines_shown}; device {device_shown}; orient {orient_shown}; "
         f"preprocess {steps_shown}; workers {_workers(config)}"
     )
+    store = Store(config.ocr_dir)
+    _check_path_lengths(store, [_key(e, config, orient, steps) for e in chosen], _naming(ctx))
     found, problems = _targets(paths, config, password)
     pages = sum(len(t.to_read(force=force)) for t in found)
     typer.echo(f"{len(found)} file(s), {pages} page(s) to read by OCR")
-    store = Store(config.ocr_dir)
     for engine in chosen:
         typer.echo(f"== {engine.name}")
         reason = engine.unavailable(config.workers_dir)

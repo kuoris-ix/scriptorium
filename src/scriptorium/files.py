@@ -1,8 +1,13 @@
 """Finding the files to read in a folder, and writing their paths to keep."""
 
 import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
+
+# The longest path Windows takes unless long paths are enabled: MAX_PATH (260), less the
+# character ending it.
+WINDOWS_MAX_PATH = 259
 
 
 def absolute_path(path: Path) -> Path:
@@ -28,3 +33,20 @@ def find_files(directory: Path, patterns: Sequence[str]) -> list[Path]:
     }
     # By the plain path: Windows paths would sort ignoring case, others not.
     return sorted(found, key=lambda p: p.relative_to(directory).parts)
+
+
+def longest_path_allowed() -> int | None:
+    """The longest path a file can be written at here; None if there's no limit to mind (not
+    Windows, or Windows with long paths enabled)."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem"
+        ) as key:
+            enabled = winreg.QueryValueEx(key, "LongPathsEnabled")[0]
+    except OSError:
+        enabled = 0
+    return None if enabled == 1 else WINDOWS_MAX_PATH

@@ -52,6 +52,18 @@ def test_a_failure_is_kept_until_the_page_is_read(tmp_path: Path) -> None:
     assert store.done("abc", key) == {3}
 
 
+def test_longest_path_is_that_of_a_failure_being_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, key = Store(tmp_path), RunKey.of(engines.find("yomitoku-lite"), min_dpi=1, max_dpi=2)
+    written = []
+    monkeypatch.setattr(Path, "replace", lambda part, path: written.append(part))
+
+    store.save_failure("0" * 64, key, 1, "RuntimeError: no", ENGINE)
+
+    assert [len(str(part)) for part in written][-1] == store.longest_path(key)
+
+
 @pytest.mark.parametrize(
     "other",
     [

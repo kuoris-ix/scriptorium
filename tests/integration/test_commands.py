@@ -18,7 +18,7 @@ from ocr_files import a4_scan, flatbed, form, scan, write_pdf
 from PIL import Image, ImageFont
 from typer.testing import CliRunner
 
-from scriptorium import engines, fictional, samples, worker
+from scriptorium import commands, engines, fictional, samples, worker
 from scriptorium.engines import Engine
 from scriptorium.models import EngineInfo, OcrPage, OcrWord, StoredPage
 from scriptorium.store import RunKey, Store
@@ -80,6 +80,25 @@ def test_run_takes_the_engines_of_the_settings(
 
     assert code == 0, output
     assert "== fake" in output
+
+
+def test_run_stops_before_reading_when_what_s_read_couldn_t_be_kept_for_too_long_paths(
+    isolated_settings: Path, scans: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = Path.cwd() / "data" / "ocr"
+    longest = Store(root).longest_path(RunKey.of(FAKE, min_dpi=100, max_dpi=200))
+    monkeypatch.setattr(commands, "longest_path_allowed", lambda: longest - 10)
+
+    code, output = invoke("run", str(scans), "-e", "fake")
+
+    assert code == 2
+    assert f"the folder what's read is kept in is too deep: {root} " in output
+    assert f"Set TEST_OCR_DIR to a folder of at most {len(str(root)) - 10} characters" in output
+    assert not root.exists()
+
+    monkeypatch.setattr(commands, "longest_path_allowed", lambda: longest)
+
+    assert invoke("run", str(scans), "-e", "fake")[0] == 0
 
 
 def test_run_needs_an_engine(scans: Path) -> None:

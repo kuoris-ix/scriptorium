@@ -1,8 +1,9 @@
+import sys
 from pathlib import Path
 
 import pytest
 
-from scriptorium.files import absolute_path, find_files
+from scriptorium.files import WINDOWS_MAX_PATH, absolute_path, find_files, longest_path_allowed
 
 
 def test_find_files_matches_any_pattern_once_in_path_order(tmp_path: Path) -> None:
@@ -36,3 +37,12 @@ def test_absolute_path_leaves_out_dots_and_keeps_links(
     monkeypatch.chdir(tmp_path / "real")
 
     assert absolute_path(Path("../link/a.pdf")) == tmp_path / "link" / "a.pdf"
+
+
+def test_paths_are_limited_on_windows_only_without_long_paths() -> None:
+    allowed = longest_path_allowed()
+
+    if sys.platform == "win32":
+        assert allowed in (None, WINDOWS_MAX_PATH)
+    else:
+        assert allowed is None

@@ -104,6 +104,12 @@ class Store:
     def _failure_path(self, sha256: str, key: RunKey, page: int) -> Path:
         return self.folder(sha256, key) / f"page-{page:04d}.failed.json"
 
+    def longest_path(self, key: RunKey) -> int:
+        """How long the longest path written for a page read with `key` is, as an absolute
+        path: a failure's, while it's written (of pages up to 9999)."""
+        path = absolute_path(self._failure_path("0" * 64, key, 1))
+        return len(str(path)) + len(".part")
+
     def note_source(
         self, sha256: str, name: str, pages: Sequence[PagePlan], path: Path | None = None
     ) -> None:
