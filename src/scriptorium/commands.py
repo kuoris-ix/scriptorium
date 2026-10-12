@@ -16,7 +16,7 @@ import sys
 import tempfile
 from collections.abc import Callable
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from itertools import combinations
 from pathlib import Path
@@ -42,6 +42,7 @@ from scriptorium.config import OcrConfig, ProgramNames
 from scriptorium.diff import Agreement, Count, groups
 from scriptorium.dump import FileRead, write_dump
 from scriptorium.engines import Engine
+from scriptorium.files import absolute_path
 from scriptorium.models import Device, StoredPage
 from scriptorium.runner import Target
 from scriptorium.store import RunKey, Store
@@ -121,9 +122,16 @@ DEVICE = typer.Option(
 
 
 def _config(ctx: typer.Context) -> OcrConfig:
-    """The settings, as the program gives them now."""
+    """The settings, as the program gives them now; the workers' folder as an absolute path
+    without "..", for messages to show it so."""
     program: _Program = ctx.obj
-    return program.config_of()
+    config = program.config_of()
+    return replace(config, workers_dir=absolute_path(config.workers_dir))
+
+
+def _workers(config: OcrConfig) -> str:
+    """The workers' folder, as shown: its path, and where it's from."""
+    return f"{config.workers_dir} ({config.origin('workers_dir')})"
 
 
 def _naming(ctx: typer.Context) -> ProgramNames:
@@ -297,7 +305,7 @@ def run(
 
     指定した PDF・画像と、指定したフォルダの下にあるものの、スキャンの
     ページを全部、エンジンごとに順に読む。使うエンジン・装置・向きの判定・
-    読む前の処理と、その出どころを最初に表示する。
+    読む前の処理・worker のフォルダと、その出どころを最初に表示する。
 
     読んだページは読み直さないので、止まった（失敗した）ときは、もう一度
     実行すれば続きから読む。時間がかかるので、裏で動かしておいてよい。
@@ -315,7 +323,7 @@ def run(
         raise typer.BadParameter(f"{orient.name} {reason}", param_hint="--orient")
     typer.echo(
         f"Using: engines {engines_shown}; device {device_shown}; orient {orient_shown}; "
-        f"preprocess {steps_shown}"
+        f"preprocess {steps_shown}; workers {_workers(config)}"
     )
     found, problems = _targets(paths, config, password)
     pages = sum(len(t.to_read(force=force)) for t in found)
@@ -403,9 +411,11 @@ def list_engines(ctx: typer.Context) -> None:
     """OCR のエンジンを一覧し、それぞれがこの環境で使えるかを示す。
 
     入っていないエンジンには、入れ方を示す。入っているエンジンが実際に
-    動くかは check-engines で確かめる。
+    動くかは check-engines で確かめる。worker のフォルダとその出どころを
+    最初に表示する。
     """
     config = _config(ctx)
+    typer.echo(f"Using: workers {_workers(config)}")
     for engine in engines.ENGINES:
         typer.echo(f"{engine.name:<14} {_availability(engine, config)}")
         typer.echo(f"{'':<14} {engine.description}")
@@ -428,13 +438,13 @@ def check_engines(ctx: typer.Context, device: Device | None = DEVICE) -> None:
     入っているエンジンを 1 つずつ起動して、使う側のプログラムが渡す架空の
     書類を読ませ、エンジンが名乗ったもの（版・モデル・装置）、起動と
     読み取りにかかった時間、書類の金額をいくつ正しく読めたか、ページの
-    向きを判定できるか（--orient に使えるか）を示す。使う装置とその
-    出どころを最初に表示する。失敗したエンジンがあれば終了コード 1 で
-    終わる。
+    向きを判定できるか（--orient に使えるか）を示す。使う装置・worker の
+    フォルダとその出どころを最初に表示する。失敗したエンジンがあれば
+    終了コード 1 で終わる。
     """
     config = _config(ctx)
     device_name, device_shown = _device(device, config)
-    typer.echo(f"Using: device {device_shown}")
+    typer.echo(f"Using: device {device_shown}; workers {_workers(config)}")
     store = Store(config.ocr_dir)
     failed = 0
     with tempfile.TemporaryDirectory(dir=store.scratch()) as scratch:

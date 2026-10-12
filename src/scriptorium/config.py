@@ -28,8 +28,8 @@ class OcrConfig:
     min_dpi: int = 300
     max_dpi: int = 600
     worker_pages: int = 1000  # a worker is started again after so many pages (0: never)
-    # Where `engines`, `device`, `orient` and `preprocess` come from, to show with them
-    # (e.g. "MYAPP_OCR_ENGINES in .env"); "default" if not given.
+    # Where `engines`, `device`, `orient`, `preprocess` and `workers_dir` come from, to show
+    # with them (e.g. "MYAPP_OCR_ENGINES in .env"); "default" if not given.
     origins: Mapping[str, str] = field(default_factory=dict)
 
     def origin(self, name: str) -> str:
