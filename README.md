@@ -5,8 +5,8 @@ English | [日本語](README.ja.md)
 Reading scanned documents (images, and PDFs of them) with OCR engines, each run in an
 environment of its own, and keeping what they read. Made for Japanese documents such as
 payslips, receipts and tax forms. scriptorium is a Python library: a project adds its `ocr`
-commands to its own command line (a Typer app), and reads what was kept from its own code. It
-has no command line of its own yet.
+commands to its own command line (a Typer app), and reads what was kept from its own code. To
+try it, or to compare engines, the same commands run on their own as `scriptorium`.
 
 - Several engines side by side (YomiToku, PaddleOCR, NDLOCR-Lite, Apple Vision, Windows OCR,
   Tesseract), each in its own Python environment, talked with over a small JSON protocol.
@@ -24,13 +24,46 @@ Status: 0.x. The commands' help and most of `docs/` are in Japanese for now.
 - The engines' environments: YomiToku, PaddleOCR and NDLOCR-Lite need Python 3.10–3.13 (uv
   fetches it), and several GB of disk for their libraries and models
 
+## Trying it out
+
+The `scriptorium` command has the same commands on their own, with fictional documents to
+score engines on. Run it in a clone:
+
+```sh
+git clone https://github.com/kuoris-ix/scriptorium
+cd scriptorium
+uv sync
+uv sync --project workers/yomitoku                          # an engine (see "Installing the engines")
+uv run scriptorium check-engines                            # does it work?
+uv run scriptorium make-samples data/ocr-trial --count 1    # fictional documents, with their truth
+uv run scriptorium run data/ocr-trial -e yomitoku           # read them
+uv run scriptorium score-engines data/ocr-trial             # how well they were read
+```
+
+`uv run scriptorium --help` lists the commands. The settings are `SCRIPTORIUM_*` variables,
+taken from the environment, else from `.env` in the working folder; paths are relative to the
+working folder. Each command shows first the settings it uses, and where they're from.
+
+| Variable | Default | |
+|---|---|---|
+| `SCRIPTORIUM_DIR` | `data/ocr` | where what's read is kept |
+| `SCRIPTORIUM_WORKERS_DIR` | the clone's `workers/` | the engines' workers |
+| `SCRIPTORIUM_ENGINES` | (none) | the engines used when none is named (`-e`), comma-separated |
+| `SCRIPTORIUM_DEVICE` | `auto` | `auto`, `cpu`, `cuda` or `mps` |
+| `SCRIPTORIUM_ORIENT` | (none) | the engine telling how pages are turned (`tesseract`) |
+| `SCRIPTORIUM_ORIENT_MIN_CONFIDENCE` | `5` | pages told with less confidence aren't turned |
+| `SCRIPTORIUM_PREPROCESS` | (none) | steps before reading, comma-separated (`flatten,deskew`) |
+| `SCRIPTORIUM_MIN_DPI`, `SCRIPTORIUM_MAX_DPI` | `300`, `600` | the resolutions scanned pages are rendered at |
+| `SCRIPTORIUM_WORKER_PAGES` | `1000` | a worker is started again after so many pages (`0`: never) |
+| `SCRIPTORIUM_PDF_PASSWORD` | (none) | a protected PDF's password |
+
 ## Using it in a project
 
 Depend on a tagged release:
 
 ```toml
 [project]
-dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.1.0"]
+dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.2.0"]
 ```
 
 and add the commands to your Typer app, with your settings (`OcrConfig`), and the command and
@@ -39,6 +72,7 @@ variable names to show in help and messages (`ProgramNames`):
 ```python
 from pathlib import Path
 
+from scriptorium import fictional
 from scriptorium.commands import make_app
 from scriptorium.config import OcrConfig, ProgramNames
 
@@ -48,8 +82,10 @@ def config() -> OcrConfig:
     return OcrConfig(
         ocr_dir=Path("data/ocr").absolute(),
         workers_dir=Path("~/scriptorium/workers").expanduser(),
-        documents=MY_SAMPLE_DOCUMENTS,  # fictional documents for `ocr make-samples`
-        check_document=MY_SAMPLE_DOCUMENTS["receipt"],  # what `ocr check-engines` reads
+        # Fictional documents for `ocr make-samples` (scriptorium's, or your own), and the one
+        # `ocr check-engines` reads.
+        documents=fictional.DOCUMENTS,
+        check_document=fictional.receipt,
         engines="yomitoku-lite",
     )
 
@@ -94,7 +130,7 @@ doesn't allow commercial use. Models are downloaded on first use (no images are 
 
 ## What's kept, and privacy
 
-Everything read stays on your machine, in `OcrConfig.ocr_dir`: the text of your documents, in
+Everything read stays on your machine, in `OcrConfig.ocr_dir` (`SCRIPTORIUM_DIR`): the text of your documents, in
 JSON files. Treat that folder as you treat the scans. `ocr remove-missing` removes what was
 read from files you've deleted.
 

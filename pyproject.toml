@@ -1,6 +1,6 @@
 [project]
 name = "scriptorium"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reading scanned Japanese documents with several OCR engines, each in an environment of its own"
 readme = "README.md"
 license = "MIT"
@@ -15,6 +15,9 @@ dependencies = [
     "pypdfium2>=5.0",
     "typer>=0.12",
 ]
+
+[project.scripts]
+scriptorium = "scriptorium.cli:main"
 
 [dependency-groups]
 dev = [

@@ -4,10 +4,9 @@ Japanese one), so Japanese comes out as boxes, but where text lands is what's te
 from pathlib import Path
 
 import pytest
-import sample_documents
 from PIL import Image, ImageFont
 
-from scriptorium import raster, samples
+from scriptorium import fictional, raster, samples
 from scriptorium.samples import Variant
 
 
@@ -16,7 +15,7 @@ def font(size: int) -> samples.Font:
 
 
 def written(tmp_path: Path, *variants: Variant, document: str = "receipt") -> list[Path]:
-    documents = {document: sample_documents.DOCUMENTS[document]}
+    documents = {document: fictional.DOCUMENTS[document]}
     return list(samples.write(tmp_path, font, documents, count=1, variants=variants))
 
 
@@ -27,7 +26,7 @@ def dark_share(image: Image.Image, box: tuple[float, float, float, float]) -> fl
     return sum(histogram[:128]) / max(sum(histogram), 1)
 
 
-@pytest.mark.parametrize("document", list(sample_documents.DOCUMENTS))
+@pytest.mark.parametrize("document", list(fictional.DOCUMENTS))
 @pytest.mark.parametrize(
     "variant",
     [

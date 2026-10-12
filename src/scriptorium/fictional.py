@@ -1,12 +1,13 @@
-"""Fictional documents for the tests, to make samples of (`ocr make-samples`) and check with.
+"""Fictional documents, to make samples of (`make-samples`) and check engines with.
 
 Receipts, card statements, invoices and passbook pages are drawn with
 made-up shops, items, amounts and dates (every value is random and
 fictional), mixing in what OCR misreads: look-alike characters (カ/力,
 ロ/口, エ/工, 0/O), ¥ and 円, △ and ▲ for minus, full-width digits and
 Japanese era dates. How they're drawn, scanned as variants and written
-with their truth is `scriptorium.samples`'s; a program gives its own
-documents (`OcrConfig.documents`), as the tests give these.
+with their truth is `scriptorium.samples`'s. The `scriptorium` command and
+the tests use these; a program gives its own documents
+(`OcrConfig.documents`), or these.
 """
 
 import math

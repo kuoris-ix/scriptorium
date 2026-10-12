@@ -25,6 +25,7 @@
 | 正解との比較（`ocr score-engines`） | 済み（`compare.py`）。`--markdown` で結果の表 |
 | エンジン同士の照合（`ocr diff-engines`、正解のない書類） | 済み（`diff.py`）。食い違いの一覧まで。照合で読み違いが見つかるかは `ocr score-engines --agreement` で数える。多数決などでまとめるのは、まだ |
 | 使う側のプログラムに `ocr` コマンドを付ける | 済み（`make_app`。設定は `OcrConfig`、名前は `ProgramNames`。§12） |
+| 単独で動くコマンド `scriptorium` | 済み（`cli.py`。設定は `SCRIPTORIUM_*` の変数と `.env`、架空の書類は `fictional.py`。§12） |
 
 ## 目的と範囲
 
@@ -357,6 +358,9 @@ class OcrPage:
 
 ## 6. コマンド（`commands.py`）
 
+`myapp ocr` は、コマンドを付けたプログラムの例。単独のコマンドでは、同じものを `ocr` を付けずに動かす
+（`uv run scriptorium list-engines` など。§12）。
+
 ```bash
 myapp ocr list-engines                             # エンジンの一覧と、使えるか
 myapp ocr check-engines                            # 入っているエンジンに架空のページを読ませて確かめる
@@ -509,8 +513,9 @@ src/scriptorium/
   pdf.py           … PDF の文字の層の語と位置（`extract_pdf`）と、その書き出し（`write_dump`）
   commands.py      … `ocr` のコマンド（`make_app` が Typer のアプリにして返す。設定は読まず、使う側が渡す）
   config.py        … コマンドが使う設定（OcrConfig。設定の値と出どころ、架空の書類）
-tests/ocr_app.py           … `make_app` を使うプログラムの例（テストで使う。設定は `TEST_OCR_*`）
-tests/sample_documents.py  … テストの架空の書類（レシート・明細・請求書・通帳）
+  fictional.py     … 架空の書類（レシート・明細・請求書・通帳）。`scriptorium` コマンドとテストが使う
+  cli.py           … 単独で動く `scriptorium` コマンド（設定は `SCRIPTORIUM_*` と `.env`）
+tests/ocr_app.py   … `make_app` を使うプログラムの例（テストで使う。設定は `TEST_OCR_*`）
 
 workers/
   ocr_worker.py             … worker の共通部分（やりとり・装置の選び方）
@@ -545,11 +550,31 @@ workers/
 `ProgramNames` は、ヘルプとメッセージに出す、使う側のコマンド名（`command`、例: `myapp ocr`）・設定の環境変数の頭
 （`settings_prefix`、例: `MYAPP_OCR_`）・PDF のパスワードの環境変数の名前（`password_variable`、例: `MYAPP_PDF_PASSWORD`）。
 
+### 単独で動くコマンド（`cli.py`）
+
+`scriptorium` コマンドは、`make_app` のコマンドを最上位に置いた（`scriptorium run` など）、自分の設定を読む
+プログラム。scriptorium を試す人や、エンジンを並べて比べたい人のためのもので、clone の中で `uv run scriptorium` と
+動かす（パッケージだけを入れる使い方は考えない）。
+
+- 設定は `SCRIPTORIUM_<項目>`（`DIR`・`WORKERS_DIR`・`ENGINES`・`DEVICE`・`ORIENT`・`ORIENT_MIN_CONFIDENCE`・
+  `PREPROCESS`・`MIN_DPI`・`MAX_DPI`・`WORKER_PAGES`）と `SCRIPTORIUM_PDF_PASSWORD`。一覧と既定は README
+- 環境変数から読み、無ければ作業フォルダの `.env` から読む。出どころは「`SCRIPTORIUM_ENGINES`」「`SCRIPTORIUM_ENGINES in .env`」
+  と表示する。空の値は、無いのと同じ
+- `.env` は `NAME=VALUE` の行（前に `export ` があってもよい）。`#` で始まる行と空の行は飛ばす。値は引用符で囲めば
+  そのまま、囲まなければ ` #` から後はコメント。依存を増やさないよう、自分で読む
+- 知らない名前（綴りの誤り）・使えない値（`DEVICE=gpu`、数でない解像度）・読めない `.env` の行は、どれと何が
+  いけないかを示して、終了コード 2 で終わる
+- 保存先の既定は作業フォルダの `data/ocr`（`.gitignore` の `data/`）、worker の既定は clone の `workers/`
+  （`uv sync` はパッケージを clone のまま入れる（editable）ので、`cli.py` の場所からわかる）
+- パスワードはコマンドのオプションが環境変数から読む（Typer）ので、`.env` にあれば、起動するときに環境変数に入れる
+- 架空の書類は `fictional.py` のもの（使う側のプログラムも使える）
+
 ## 13. テスト
 
 - **テストデータは架空の値で作る**（CONTRIBUTING.md）。`tests/ocr_files.py` で、白地に黒い四角を描いた「スキャン」と、
   それを貼った PDF（回転の指定・パスワード付きも）を作る。四角の位置で、描き直しと座標の変換を確かめる
-- `tests/ocr_app.py`: `make_app` を使う小さなプログラム（設定は `TEST_OCR_*`）。コマンドのテストはこれで動かす
+- `tests/ocr_app.py`: `make_app` を使う小さなプログラム（設定は `TEST_OCR_*`）。コマンドのテストはこれで動かす。
+  `scriptorium` コマンドの設定の読み方は `tests/unit/test_cli.py`
 - `tests/ocr_fake_worker.py`: 本物の `ocr_worker.py` で話す、テスト用の worker。決まった箱を返す・指定したページで
   失敗する・異常終了する・起動に失敗する・標準出力に余計なものを書く、を変数 `FAKE_OCR` で指示する。テストを
   動かしている Python で起動する（uv を使わない）
@@ -569,9 +594,8 @@ workers/
    要るものから入れる（表の書類、縦書きの本）
 2. **速さ**（§16）: ページの多い書類（本など）を読む前に
 3. Linux の確かめ（§14）
-4. **単独で動くコマンド**（v0.2 以降）: 今は Python のライブラリで、使う側のプログラムに組み込まないと動かない。
-   scriptorium を試したい人や、複数のエンジンの精度や癖を並べて比べたい人のために、`scriptorium` コマンドを持つ
-   （設定は自分の環境変数から読み、架空の書類も持つ）。`engine-setup` の手順の `myapp` も、これに置き換えられる
+4. **単独で動くコマンド（済み）**: scriptorium を試したい人や、複数のエンジンの精度や癖を並べて比べたい人のために、
+   `scriptorium` コマンドを持つ（§12）。`engine-setup` の手順も、これで動かすようにした
 5. **docs の英訳**: `design`・`benchmark`・`benchmark-results` の英語版（`<名前>.md`）は、準備中の注記と概要だけ。
    訳したら、注記と概要を本文に置き換える
 6. **文字の層のある PDF を正解にした採点**: システムが出力した PDF（明細など）は、文字の層がそのまま正解になる。
