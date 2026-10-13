@@ -30,6 +30,7 @@ from scriptorium import (
     check,
     cleanup,
     engines,
+    join,
     preprocess,
     raster,
     runner,
@@ -635,6 +636,83 @@ def _straightened(skew: float) -> str:
     return f"turned {skew:+.2f} degrees" if skew else "level"
 
 
+def join_scans(
+    ctx: typer.Context,
+    paths: list[Path] = PATHS,
+    output: Path = typer.Option(
+        ..., "--output", "-o", file_okay=False, help="つないだ画像を書き出すフォルダ"
+    ),
+    no_align: bool = typer.Option(False, "--no-align", help="右半分を上下にずらさずにつなぐ"),
+    keep_blank: bool = typer.Option(False, "--keep-blank", help="切れ目の白い帯を削らずにつなぐ"),
+    password: str | None = PASSWORD,
+) -> None:
+    """2 ページに分けてスキャンした書類を、1 枚の画像につなぐ。
+
+    A3 の書類を A4 のスキャナーで、左半分・右半分の順に読み取ったもの
+    のように、ページを 2 つずつ（1 と 2、3 と 4、…）左右に並べ、PNG
+    （元の解像度）で書き出す。PDF のページは、埋め込まれた画像を
+    そのまま取り出す（描き直さない）。名前は「元の名前_p<ページ>+
+    <ページ>.png」。同じ名前のファイルがあれば書き換えない。
+
+    スキャナーが読めずに白くした、切れ目の白い帯（インクがごみ程度の
+    列。各半分 3mm まで）を削ってからつなぐ（--keep-blank で削らない）。
+    右半分は、切れ目の両側の行（罫線・文字の行）が合うように上下に
+    ずらす。削った幅、ずらした長さと合い方（相関。1 が一番よい）を
+    表示する。合わなければつながない（--no-align を付けると、ずらさずに
+    つなぐ）。切れ目で欠けた所・2 度読んだ所は直せないので、つないだ
+    画像を開いて確かめてから {command} run で読む。ページの数が奇数の
+    ファイルや、つなげないページがあれば終了コード 1 で終わる。
+    """
+    config = _config(ctx)
+    found, problems = _targets(paths, config, password)
+    written = 0
+    for target in found:
+        if len(target.pages) % 2:
+            typer.echo(f"NG {target.name}: {len(target.pages)} page(s), not halves in twos")
+            problems += 1
+            continue
+        stem = Path(target.name).with_suffix("").as_posix()
+        for left_page, right_page in zip(target.pages[::2], target.pages[1::2], strict=True):
+            where = f"{target.name} p{left_page.page}+p{right_page.page}"
+            path = output / f"{stem}_p{left_page.page}+{right_page.page}.png"
+            try:
+                left = join.half(target.path, left_page, password=password)
+                right = join.half(target.path, right_page, password=password)
+                sheet = join.join(left, right, align=not no_align, trim=not keep_blank)
+            except join.Unjoinable as e:
+                typer.echo(f"{where}: not joined: {e}")
+                problems += 1
+                continue
+            line = f"{where}: {_trimmed(sheet)}, {_lined_up(sheet)}"
+            if path.exists():
+                typer.echo(f"{line}; {path.name} exists, kept")
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            sheet.image.save(path, dpi=(sheet.dpi, sheet.dpi))
+            written += 1
+            typer.echo(f"{line} -> {path.name}")
+    typer.echo(f"{written} image(s) written to {output}")
+    if problems:
+        raise typer.Exit(1)
+
+
+def _trimmed(sheet: join.Joined) -> str:
+    """How much white was cut off along the cut, in millimetres (left half + right half)."""
+    left, right = (round(n / sheet.dpi * 25.4, 1) for n in sheet.trimmed)
+    if not left and not right:
+        return "no white trimmed at the cut"
+    return f"white at the cut trimmed {left} + {right} mm"
+
+
+def _lined_up(sheet: join.Joined) -> str:
+    """How the right half was lined up with the left one, in millimetres."""
+    if sheet.agreement is None:
+        return "joined as they are"
+    mm = sheet.shift / sheet.dpi * 25.4
+    moved = f"moved {'down' if mm > 0 else 'up'} {abs(mm):.1f} mm" if sheet.shift else "not moved"
+    return f"right half {moved} (agreeing {sheet.agreement:.2f})"
+
+
 def make_samples(
     ctx: typer.Context,
     folder: Path = typer.Argument(
@@ -1084,7 +1162,8 @@ def make_app(config_of: ConfigOf, names: ProgramNames | None = None) -> typer.Ty
             "読んでいないように見える（各コマンドは使う設定を最初に表示する）。"
         ),
         epilog="使う順序: 1. list-engines → 2. run → 3. status・dump-text。"
-        "何枚も並べたスキャンなどは先に split-scans。スキャンを消したら remove-missing",
+        "何枚も並べたスキャンなどは先に split-scans、2 ページに分けて読んだものは先に"
+        " join-scans。スキャンを消したら remove-missing",
         no_args_is_help=True,
     )
 
@@ -1099,6 +1178,7 @@ def make_app(config_of: ConfigOf, names: ProgramNames | None = None) -> typer.Ty
 
     read = "読む・読んだ結果を見る"
     add("split-scans", read, split_scans)
+    add("join-scans", read, join_scans)
     add("run", read, run)
     add("status", read, status)
     add("dump-text", read, dump_text)

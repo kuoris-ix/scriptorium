@@ -15,7 +15,7 @@ import pytest
 import typer
 from ocr_app import app
 from ocr_files import a4_scan, flatbed, form, scan, write_pdf
-from PIL import Image, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 from typer.testing import CliRunner
 
 from scriptorium import commands, engines, fictional, samples, worker
@@ -825,3 +825,71 @@ def test_split_scans_exits_with_1_when_a_page_has_no_sheet(isolated_settings: Pa
 
     assert code == 1
     assert "blank.pdf p1: 0 document(s)" in output
+
+
+def _a3_halves() -> list[Image.Image]:
+    """The halves (A4 portrait, 100 dpi) of a fictional A3 form, the right one laid 2 mm
+    (8 pixels) lower than the left one; the scanner left 1 mm (4 pixels) of the left half's
+    edge along the cut white, and 1.5 mm (6 pixels) of the right half's."""
+    sheet = form((1654, 1169), paper=20)
+    draw = ImageDraw.Draw(sheet)
+    for top in (150, 210, 260, 400, 520, 790, 930):
+        draw.rectangle((700, top, 950, top + 12), fill="black")
+    left = sheet.crop((0, 0, 827, 1169))
+    right = Image.new("RGB", (827, 1169), "white")
+    right.paste(sheet.crop((827, 0, 1654, 1169)), (0, 8))
+    ImageDraw.Draw(left).rectangle((823, 0, 826, 1168), fill="white")
+    ImageDraw.Draw(right).rectangle((0, 0, 5, 1168), fill="white")
+    return [left, right]
+
+
+def test_join_scans_puts_the_halves_of_a_sheet_side_by_side(isolated_settings: Path) -> None:
+    folder = isolated_settings / "data" / "scans"
+    write_pdf(folder / "form.pdf", [*_a3_halves(), *_a3_halves()])
+    out = isolated_settings / "data" / "joined"
+
+    code, output = invoke("join-scans", str(folder), "-o", str(out))
+
+    assert code == 0, output
+    assert re.search(
+        r"^form\.pdf p1\+p2: white at the cut trimmed 1\.0 \+ 1\.5 mm, "
+        r"right half moved up 2\.0 mm \(agreeing 0\.\d\d\) -> form_p1\+2\.png$",
+        output,
+        re.MULTILINE,
+    )
+    assert (
+        "form.pdf p3+p4: white at the cut trimmed 1.0 + 1.5 mm, right half moved up 2.0 mm"
+        in output
+    )
+    assert sorted(p.name for p in out.iterdir()) == ["form_p1+2.png", "form_p3+4.png"]
+    with Image.open(out / "form_p1+2.png") as image:
+        assert image.size == (1654 - 4 - 6, 1169 + 8)
+        assert image.info["dpi"] == pytest.approx((100, 100), abs=0.1)
+
+    code, output = invoke("join-scans", str(folder), "-o", str(out))
+
+    assert code == 0, output
+    assert "form_p1+2.png exists, kept" in output
+    assert "0 image(s) written" in output
+
+
+def test_join_scans_exits_with_1_for_what_it_cannot_join(isolated_settings: Path) -> None:
+    folder = isolated_settings / "data" / "scans"
+    write_pdf(folder / "odd.pdf", _a3_halves()[:1])
+    write_pdf(folder / "blank.pdf", [a4_scan(100), a4_scan(100)])
+    out = isolated_settings / "out"
+
+    code, output = invoke("join-scans", str(folder), "-o", str(out))
+
+    assert code == 1
+    assert "NG odd.pdf: 1 page(s), not halves in twos" in output
+    assert "blank.pdf p1+p2: not joined: there's no ink along the cut" in output
+    assert "0 image(s) written" in output
+
+    code, output = invoke("join-scans", str(folder / "blank.pdf"), "-o", str(out), "--no-align")
+
+    assert code == 0, output
+    assert (
+        "blank.pdf p1+p2: white at the cut trimmed 3.0 + 3.0 mm, joined as they are"
+        " -> blank_p1+2.png" in output
+    )
