@@ -29,6 +29,11 @@ class Engine:
     # Raised when what the worker reads changes (e.g. how its results are
     # converted), to have the pages read again; see `store.RunKey`.
     revision: int = 1
+    # Whether several workers read faster, each using about a core (see `jobs`). The others
+    # read fastest with one: it uses every core (models run with ONNX Runtime or PyTorch on
+    # the CPU), or the GPU.
+    parallel: bool = False
+    memory: float = 0.5  # GB a worker uses at most, about (of a parallel one)
 
     def folder(self, workers_dir: Path) -> Path:
         return workers_dir / self.worker
@@ -72,8 +77,16 @@ ENGINES: tuple[Engine, ...] = (
         "windows_ocr",
         "The OCR built into Windows (Windows.Media.Ocr)",
         platforms=("win32",),
+        parallel=True,
+        memory=1.0,
     ),
-    Engine("tesseract", "tesseract", "Tesseract (installed apart), as a baseline"),
+    Engine(
+        "tesseract",
+        "tesseract",
+        "Tesseract (installed apart), as a baseline",
+        parallel=True,
+        memory=0.5,
+    ),
 )
 
 

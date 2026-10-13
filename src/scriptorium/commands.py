@@ -30,6 +30,7 @@ from scriptorium import (
     check,
     cleanup,
     engines,
+    jobs,
     join,
     preprocess,
     raster,
@@ -118,6 +119,14 @@ OUTPUT = typer.Option(
 DEVICE = typer.Option(
     None,
     help="エンジンを動かす装置（auto は CUDA・MPS・CPU の順）。省略すると {settings}DEVICE",
+    show_default=False,
+)
+JOBS = typer.Option(
+    None,
+    "--jobs",
+    metavar="N|auto",
+    help="同時に読む worker の数。auto は、複数で速くなるエンジン（tesseract・windows-ocr）だけ"
+    "コア数とメモリに合わせて増やす。省略すると {settings}JOBS（なければ auto）",
     show_default=False,
 )
 
@@ -246,6 +255,26 @@ def _device(device: Device | None, config: OcrConfig) -> tuple[str, str]:
     return config.device, f"{config.device} ({config.origin('device')})"
 
 
+def _jobs(text: str | None, config: OcrConfig) -> tuple[int | None, str]:
+    """The workers each engine reads with (None: as the machine allows), as shown."""
+    if text is None:
+        return config.jobs, f"{config.jobs or 'auto'} ({config.origin('jobs')})"
+    if text == "auto":
+        return None, "auto (--jobs)"
+    if not text.isdigit() or int(text) < 1:
+        raise typer.BadParameter("auto, or a number of workers (1 or more)", param_hint="--jobs")
+    return int(text), f"{text} (--jobs)"
+
+
+def _decide(asked: int | None, engine: Engine, machine: jobs.Machine, what: str) -> int:
+    """The workers `engine` reads with (`what` they do), told with why."""
+    decided = jobs.decide(asked, engine, machine)
+    typer.echo(f"{what} with {decided.count} worker(s) ({decided.why})")
+    if decided.warning:
+        typer.echo(f"warning: {decided.warning}", err=True)
+    return decided.count
+
+
 def _key(
     engine: Engine, config: OcrConfig, orient: Engine | None, steps: tuple[str, ...]
 ) -> RunKey:
@@ -321,13 +350,16 @@ def run(
     reread: bool = typer.Option(False, "--reread", help="読んだページも読み直す"),
     orient_name: str | None = ORIENT,
     steps_names: str | None = PREPROCESS,
+    jobs_text: str | None = JOBS,
     password: str | None = PASSWORD,
 ) -> None:
     """スキャンのページを OCR で読み、読んだ結果を保存する（{settings}DIR）。
 
     指定した PDF・画像と、指定したフォルダの下にあるものの、スキャンの
     ページを全部、エンジンごとに順に読む。使うエンジン・装置・向きの判定・
-    読む前の処理・worker のフォルダと、その出どころを最初に表示する。
+    読む前の処理・worker の数・worker のフォルダと、その出どころを最初に表示する。
+    エンジンごとに、何個の worker で読むかと、その理由も表示する。worker は
+    低い優先度で動かし、次のページは裏で先に描いておく。
 
     読んだページは読み直さないので、止まった（失敗した）ときは、もう一度
     実行すれば続きから読む。時間がかかるので、裏で動かしておいてよい。
@@ -343,12 +375,14 @@ def run(
     device_name, device_shown = _device(device, config)
     orient, orient_shown = _orient(orient_name, config)
     steps, steps_shown = _steps(steps_names, config)
+    asked, jobs_shown = _jobs(jobs_text, config)
     if orient is not None and (reason := orient.unavailable(config.workers_dir)):
         raise typer.BadParameter(f"{orient.name} {reason}", param_hint="--orient")
     typer.echo(
         f"Using: engines {engines_shown}; device {device_shown}; orient {orient_shown}; "
-        f"preprocess {steps_shown}; workers {_workers(config)}"
+        f"preprocess {steps_shown}; jobs {jobs_shown}; workers {_workers(config)}"
     )
+    machine = jobs.Machine.here()
     store = Store(config.ocr_dir)
     _check_path_lengths(store, [_key(e, config, orient, steps) for e in chosen], _naming(ctx))
     found, problems = _targets(paths, config, password)
@@ -361,6 +395,8 @@ def run(
             typer.echo(f"skipped: {reason}")
             problems += 1
             continue
+        count = _decide(asked, engine, machine, "reading")
+        orient_count = 1 if orient is None else _decide(asked, orient, machine, "turning")
         outcome = runner.run(
             found,
             engine,
@@ -377,6 +413,8 @@ def run(
             orient_min_confidence=config.orient_min_confidence,
             steps=steps,
             worker_pages=config.worker_pages,
+            jobs=count,
+            orient_jobs=orient_count,
             say=typer.echo,
         )
         if outcome.log is None:

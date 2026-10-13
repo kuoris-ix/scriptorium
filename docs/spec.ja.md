@@ -65,6 +65,10 @@ uv run --project workers/<worker> python workers/<worker>/worker.py
 - worker が途中で終わったら、そのときのページを失敗にして、残りのために起動し直す。3 回続けて終わったら、そのエンジンを
   あきらめる
 - `OcrConfig.worker_pages`（既定 1,000）ページごとに起動し直す
+- worker が複数（`OcrConfig.jobs`・`--jobs`）なら、それぞれが次のページを取る。起動し直しと、続けて終わった回数は
+  worker ごとに数える。すべての worker があきらめたら、そのエンジンをあきらめる
+- worker は低い優先度で動かす（Windows は `BELOW_NORMAL_PRIORITY_CLASS`、Linux・macOS は nice 値を 10 上げる）。
+  worker が起動するものも同じ優先度になる
 
 ## 2. 保存の置き方
 

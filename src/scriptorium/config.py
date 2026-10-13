@@ -28,8 +28,10 @@ class OcrConfig:
     min_dpi: int = 300
     max_dpi: int = 600
     worker_pages: int = 1000  # a worker is started again after so many pages (0: never)
-    # Where `engines`, `device`, `orient`, `preprocess` and `workers_dir` come from, to show
-    # with them (e.g. "MYAPP_OCR_ENGINES in .env"); "default" if not given.
+    # The workers each engine reads with at once; None: as the machine allows (see `jobs`).
+    jobs: int | None = None
+    # Where `engines`, `device`, `orient`, `preprocess`, `jobs` and `workers_dir` come from, to
+    # show with them (e.g. "MYAPP_OCR_ENGINES in .env"); "default" if not given.
     origins: Mapping[str, str] = field(default_factory=dict)
 
     def origin(self, name: str) -> str:
@@ -44,7 +46,8 @@ class ProgramNames:
     # How the commands are run, e.g. "myapp ocr".
     command: str = "ocr"
     # What the settings' environment variables start with: "MYAPP_OCR_" names the setting of
-    # `OcrConfig.engines` MYAPP_OCR_ENGINES (and so on: _DIR, _ORIENT, _PREPROCESS, _DEVICE).
+    # `OcrConfig.engines` MYAPP_OCR_ENGINES (and so on: _DIR, _ORIENT, _PREPROCESS, _DEVICE,
+    # _JOBS).
     settings_prefix: str = "OCR_"
     # The environment variable a protected PDF's password is read from.
     password_variable: str = "PDF_PASSWORD"

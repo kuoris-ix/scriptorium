@@ -247,7 +247,8 @@ scriptorium（Python 3.14）                     workers/yomitoku/（Python 3.13
   書いてから名前を変える
 - やりとりの形には版（`"protocol": 1`）を付け、scriptorium と worker の食い違いを検出する
 - 1 回の実行で worker を 1 度だけ起動し、すべてのファイルのページを順に渡す（モデルの読み込みは重いため）。
-  ページは 1 枚ずつ描き直して渡し、読み終わったら消す（一時フォルダに画像をためない）
+  ページは worker が読んでいる間に、次の数枚を裏で描いておき、読み終わったら消す（一時フォルダに画像をためない）。
+  worker を複数にすると（`--jobs`）、それぞれが次のページを取る（§16）
 - worker が異常終了したら、そのとき読んでいたページを失敗として記録し、残りのページのために起動し直す。
   3 回続けて止まったら、そのエンジンはあきらめる（残りのページは読まないまま）
 - 長い実行では、worker を 1,000 ページごと（`OcrConfig.worker_pages`）に起動し直す。ページごとに少しずつメモリを
@@ -580,10 +581,11 @@ workers/
 | `device` | `auto` | `auto`・`cpu`・`cuda`・`mps` |
 | `min_dpi`・`max_dpi` | `300`・`600` | スキャンのページを描き直す解像度の範囲 |
 | `worker_pages` | `1000` | worker をこのページ数ごとに起動し直す（`0` で起動し直さない） |
+| `jobs` | `None`（auto） | エンジンごとに同時に読む worker の数。`None` はマシンに合わせて決める（§16） |
 | `orient` | （なし） | `--orient` を付けないときの、向きを判定するエンジン（`tesseract`） |
 | `orient_min_confidence` | `5` | これより確からしさの低い判定では回さない |
 | `preprocess` | （なし） | `--preprocess` を付けないときの前処理（`flatten,deskew` など） |
-| `origins` | （なし） | `engines`・`device`・`orient`・`preprocess`・`workers_dir` の出どころ（「`MYAPP_OCR_ENGINES` in .env」など）。各コマンドが最初に表示する（`workers_dir` は `..` の無い絶対パスにして） |
+| `origins` | （なし） | `engines`・`device`・`orient`・`preprocess`・`jobs`・`workers_dir` の出どころ（「`MYAPP_OCR_ENGINES` in .env」など）。各コマンドが最初に表示する（`workers_dir` は `..` の無い絶対パスにして） |
 
 `ProgramNames` は、ヘルプとメッセージに出す、使う側のコマンド名（`command`、例: `myapp ocr`）・設定の環境変数の頭
 （`settings_prefix`、例: `MYAPP_OCR_`）・PDF のパスワードの環境変数の名前（`password_variable`、例: `MYAPP_PDF_PASSWORD`）。
@@ -595,7 +597,7 @@ workers/
 動かす（パッケージだけを入れる使い方は考えない）。
 
 - 設定は `SCRIPTORIUM_<項目>`（`DIR`・`WORKERS_DIR`・`ENGINES`・`DEVICE`・`ORIENT`・`ORIENT_MIN_CONFIDENCE`・
-  `PREPROCESS`・`MIN_DPI`・`MAX_DPI`・`WORKER_PAGES`）と `SCRIPTORIUM_PDF_PASSWORD`。一覧と既定は README
+  `PREPROCESS`・`MIN_DPI`・`MAX_DPI`・`WORKER_PAGES`・`JOBS`）と `SCRIPTORIUM_PDF_PASSWORD`。一覧と既定は README
 - 環境変数から読み、無ければ作業フォルダの `.env` から読む。出どころは「`SCRIPTORIUM_ENGINES`」「`SCRIPTORIUM_ENGINES in .env`」
   と表示する。空の値は、無いのと同じ
 - `.env` は `NAME=VALUE` の行（前に `export ` があってもよい）。`#` で始まる行と空の行は飛ばす。値は引用符で囲めば
@@ -645,21 +647,38 @@ workers/
    `livetext` で塊を行ごとにする（`unit: "line"`）。補正を切ると数字を別の数字に「直さ」なくなるが、正しく読める
    数は同じ（[測った結果](benchmark-results.ja.md) の Apple Vision）。照合役に使わないうちは急がない
 
-## 16. 速さ（後で入れる改善）
+## 16. 速さ
 
-今はページを 1 枚ずつ順に読み、`-e all` もエンジンを 1 つずつ順に動かす。メニーコア・大きなメモリ・速い SSD の
-PC で速くするなら、効きそうな順に:
+`-e all` はエンジンを 1 つずつ順に動かす。1 つのエンジンの中では、次のページを先に描いておき、エンジンによっては
+worker を複数にする。考えた改善と、その結果:
 
 1. **NDLOCR-Lite のモデルを読み込んだままにする（済み）**: ページごとに `ndlocr-lite` コマンドを起動し、毎回モデルを
    読み込んでいたのを、worker の中でモデルを 1 度だけ読み込んで使い回すようにした。Windows の CPU で 1 ページ
    9.2 秒 → 0.7 秒（`ocr-trial` の 64 ページ。読んだ内容は前と同じ）。代わりに worker の起動が 7 秒ほどになった
 2. **ページを描くのと読むのを重ねる**: 次のページを、エンジンが今のページを読んでいる間に描いておく（先読み）。
    GPU で 1 ページ 1 秒前後のエンジンでは、描いて PNG に保存する時間が目立つ。PNG の圧縮は軽くした（`compress_level=1`、
-   済み）。先読みはまだ
-3. **エンジンを同時に動かす**: `-e all` で、GPU のエンジンと CPU のエンジンを同時に動かす（取り合わない）
-4. **CPU のエンジンを複数起動して、ページを分け合う**（Tesseract・NDLOCR-Lite・Windows の OCR）: エンジン自身も
-   複数のスレッドを使う（Tesseract は OpenMP、NDLOCR-Lite は ONNX Runtime）ので、worker ごとのスレッド数を絞る。
-   GPU のエンジンは、GPU が 1 枚なら、複数起動してもあまり速くならない
+   済み）。先読みも済み: 描くのは 1 ページを読む時間の 1〜5 割なので、1.2〜2 倍ほど速くなる（読むのが速い
+   エンジンほど、解像度が高いほど効く）
+3. **エンジンを同時に動かす**: `-e all` で、GPU のエンジンと CPU のエンジンを同時に動かす（取り合わない）。
+   入れない: 互いの遅れは小さいが、Tesseract を複数で動かすようにした後は、全体の時間がほとんど縮まない
+4. **worker を複数起動して、ページを分け合う（済み、`--jobs`）**: 架空の書類で測ると、エンジンは 3 つに分かれた
+   - **複数で速くなる**（`Engine.parallel`）: Tesseract（OpenMP のスレッドを 1 つにして、物理コアの数まで
+     ほぼ比例して速くなる。論理コアまで増やしても 1 割ほど）、Windows の OCR
+   - **1 つで全コアを使うのがいちばん速い**: NDLOCR-Lite と、CPU で動かす YomiToku。複数にしても 1.3 倍まで、
+     増やしすぎると遅くなる（CPU に空きがあっても。worker ごとにモデルの重みを持つので、メモリかキャッシュの
+     取り合いと考えられる）。スレッドを絞って数を増やしても速くならない
+   - **GPU 1 枚に 1 つ**: GPU で動かすエンジン。2 つにしても 1.4 倍まで、GPU のメモリが足りないと遅くなる
+
+worker の数は `--jobs`（`OcrConfig.jobs`）で決める。既定の `auto` は、複数で速くなるエンジンだけ増やす（`jobs.py`）:
+物理コアから 4 分の 1（少なくとも 1 つ）を残した数、ただし空きメモリから 4GB か 5 分の 1 を残して、エンジンの
+目安（`Engine.memory`）で割った数まで。物理コアが 4 未満か、メモリが 8GB 未満の PC では 1 つ。物理コアの数と
+空きメモリは psutil で知る。数を指定したら、そのとおりにする（速くならないエンジン・コアより多い数・メモリが
+足りなさそうな数なら、警告する）。worker は低い優先度で動かすので、ほかのアプリが先に動く。
+
+次のページは裏で描いておく: worker が 1 つならスレッド 1 つで、複数なら worker と同じ数のプロセスで（pdfium は
+1 つのプロセスで同時に 1 ページしか描けないため。スレッドで並べても 1.4 倍ほどで止まる）。Windows の OCR は
+読むのが描くのと同じくらい速く、worker を 2 つにすると、描くのが 1 つでは追いつかない。前処理の戻し方
+（`preprocess.Back`）は、プロセスの間で渡せるよう、関数ではなくデータクラスにした。
 
 並べて動かすには、保存も同時の書き込みに耐えるようにする（済み）。一時ファイルは書くたびに別の名前にし、
 `orient-<engine>.json` はロックの中で読んで書き直す。Windows では、ほかのプロセスが開いているファイルを置き換え

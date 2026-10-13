@@ -71,6 +71,10 @@ If `start`'s `protocol` differs, the worker ends with `fatal`.
 - If a worker ends midway, the page it was on is a failure, and it's started again for the
   rest. After 3 ends in a row, that engine is given up.
 - It's started again every `OcrConfig.worker_pages` pages (1,000 by default).
+- With several workers (`OcrConfig.jobs`, `--jobs`), each takes the next page; the restarts and
+  the ends in a row are counted for each. An engine is given up when every worker has.
+- A worker runs at a low priority (Windows: `BELOW_NORMAL_PRIORITY_CLASS`; Linux, macOS: its
+  niceness raised by 10), as what it starts does.
 
 ## 2. How the store is laid out
 

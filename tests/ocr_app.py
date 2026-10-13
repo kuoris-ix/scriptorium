@@ -42,9 +42,10 @@ def config() -> OcrConfig:
         min_dpi=int(_setting("min_dpi", "300")),
         max_dpi=int(_setting("max_dpi", "600")),
         worker_pages=int(_setting("worker_pages", "1000")),
+        jobs=None if _setting("jobs", "auto") == "auto" else int(_setting("jobs", "")),
         origins={
             name: PREFIX + name.upper()
-            for name in ("engines", "device", "orient", "preprocess", "workers_dir")
+            for name in ("engines", "device", "orient", "preprocess", "jobs", "workers_dir")
             if PREFIX + name.upper() in os.environ
         },
     )

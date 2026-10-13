@@ -16,7 +16,8 @@ on the page as it is.
   looked for on a flattened, small copy.
 
 Only Pillow is used. The steps were tried on fictional samples (see
-docs/benchmark-results.ja.md).
+docs/benchmark-results.ja.md). The ways back can be pickled: a page may be
+prepared in another process (see `runner`).
 """
 
 import math
@@ -94,16 +95,19 @@ def skew(image: Image.Image) -> float:
     return max((coarse + a / 20 for a in range(-10, 11)), key=unevenness)
 
 
-def rotated(image: Image.Image, degrees: float) -> tuple[Image.Image, Back]:
-    """`image` turned `degrees` counterclockwise (grown to hold it all), and the way back."""
-    turned = image.rotate(
-        degrees, resample=Image.Resampling.BICUBIC, expand=True, fillcolor="white"
-    )
-    cx, cy = image.width / 2, image.height / 2
-    nx, ny = turned.width / 2, turned.height / 2
-    cos, sin = math.cos(math.radians(degrees)), math.sin(math.radians(degrees))
+@dataclass(frozen=True)
+class _TurnedBack:
+    """The way back from an image turned `degrees` counterclockwise, of `size`, grown to
+    `turned_size`."""
 
-    def back(box: Box) -> Box:
+    degrees: float
+    size: tuple[int, int]
+    turned_size: tuple[int, int]
+
+    def __call__(self, box: Box) -> Box:
+        cx, cy = self.size[0] / 2, self.size[1] / 2
+        nx, ny = self.turned_size[0] / 2, self.turned_size[1] / 2
+        cos, sin = math.cos(math.radians(self.degrees)), math.sin(math.radians(self.degrees))
         x0, y0, x1, y1 = box
         # Each corner turned back clockwise, about the centre (y grows downwards).
         corners = [
@@ -114,7 +118,13 @@ def rotated(image: Image.Image, degrees: float) -> tuple[Image.Image, Back]:
         xs, ys = [c[0] for c in corners], [c[1] for c in corners]
         return min(xs), min(ys), max(xs), max(ys)
 
-    return turned, back
+
+def rotated(image: Image.Image, degrees: float) -> tuple[Image.Image, Back]:
+    """`image` turned `degrees` counterclockwise (grown to hold it all), and the way back."""
+    turned = image.rotate(
+        degrees, resample=Image.Resampling.BICUBIC, expand=True, fillcolor="white"
+    )
+    return turned, _TurnedBack(degrees, image.size, turned.size)
 
 
 def deskew(image: Image.Image) -> tuple[Image.Image, Back]:
@@ -141,16 +151,22 @@ def steps(names: Sequence[str]) -> list[Step]:
         raise KeyError(f"no preprocessing step {e.args[0]!r} (use: {', '.join(STEPS)})") from e
 
 
+@dataclass(frozen=True)
+class _BackThrough:
+    """The way back through each of `backs`, the last first."""
+
+    backs: tuple[Back, ...]
+
+    def __call__(self, box: Box) -> Box:
+        for back in reversed(self.backs):
+            box = back(box)
+        return box
+
+
 def apply(image: Image.Image, chosen: Sequence[Step]) -> tuple[Image.Image, Back]:
     """`image` through each of `chosen`, and the way back through all of them."""
     backs = []
     for step in chosen:
         image, back = step.apply(image)
         backs.append(back)
-
-    def back_all(box: Box) -> Box:
-        for back in reversed(backs):
-            box = back(box)
-        return box
-
-    return image, back_all
+    return image, _BackThrough(tuple(backs))

@@ -55,6 +55,7 @@ working folder. Each command shows first the settings it uses, and where they're
 | `SCRIPTORIUM_PREPROCESS` | (none) | steps before reading, comma-separated (`flatten,deskew`) |
 | `SCRIPTORIUM_MIN_DPI`, `SCRIPTORIUM_MAX_DPI` | `300`, `600` | the resolutions scanned pages are rendered at |
 | `SCRIPTORIUM_WORKER_PAGES` | `1000` | a worker is started again after so many pages (`0`: never) |
+| `SCRIPTORIUM_JOBS` | `auto` | the workers each engine reads with at once (`--jobs`); `auto`: several only for the engines faster so (`tesseract`, `windows-ocr`), as the cores and memory allow |
 | `SCRIPTORIUM_PDF_PASSWORD` | (none) | a protected PDF's password |
 
 ## Using it in a project
