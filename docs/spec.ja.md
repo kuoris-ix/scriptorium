@@ -22,7 +22,7 @@ uv run --project workers/<worker> python workers/<worker>/worker.py
 - `uv` は環境変数 `UV`、なければ PATH から探す
 - 使う側のプログラムの環境を指す変数（`VIRTUAL_ENV`・`UV_PROJECT_ENVIRONMENT`・`PYTHONHOME`・`PYTHONPATH`）は渡さない。
   `PYTHONIOENCODING=utf-8` を付ける（Windows でも日本語をログに書けるように）
-- worker の標準エラー出力は、そのままログ（`<ocr_dir>/logs/<日時>-<エンジン>.log`）に書く
+- worker の標準エラー出力は、そのままログ（`<ocr_dir>/logs/<日時>-<プロセス ID>-<エンジン>.log`）に書く
 
 ### scriptorium → worker（標準入力、1 行に JSON を 1 つ）
 
@@ -77,12 +77,17 @@ uv run --project workers/<worker> python workers/<worker>/worker.py
             page-0001.json              読んだページ
             page-0002.failed.json       読めなかったページと、その理由
         orient-<エンジン>.json            各ページの向き（向きの判定をしたエンジンごと）
-    logs/<日時>-<エンジン>.log           worker のログ
+        orient-<エンジン>.lock            そのファイルを書き直す間、ロックする
+    logs/<日時>-<プロセス ID>-<エンジン>.log   worker のログ
     tmp/                                worker に渡す画像の一時フォルダ（止めた実行のものが残りうる）
 ```
 
 - ファイルは中身（SHA-256）で知る。名前を変えたり移したりしても読み直さない
-- どのファイルも丸ごと書く（`.part` に書いてから名前を変える）。UTF-8、`ensure_ascii` なし、インデント 1
+- どのファイルも丸ごと書く（`<名前>.<乱数の 16 進 8 桁>.part` に書いてから名前を変える）。UTF-8、`ensure_ascii` なし、
+  インデント 1
+- 同じ保存先に、いくつかの実行が同時に保存してよい: 一時ファイルは書くたびに別の名前にする。`orient-<エンジン>.json` は
+  `orient-<エンジン>.lock` をロックして（OS のファイルロック）書き直す。Windows では、ほかのプロセスが開いているファイルは
+  10 秒まで待ってやり直す。読めない `orient-<エンジン>.json` は、ページごとに向きを判定し直す
 
 | ファイル | 中身 |
 |---|---|

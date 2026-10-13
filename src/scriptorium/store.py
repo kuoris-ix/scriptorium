@@ -8,23 +8,38 @@
             page-0001.json           a page read (see `StoredPage`)
             page-0002.failed.json    a page that couldn't be read, and why
         orient-<engine>.json         how each page is turned, as that engine told (`--orient`)
+        orient-<engine>.lock         held while that file is rewritten
 
 A file is known by its contents, not its name, so renaming or moving it
 doesn't have it read again. A page is read again only when its RunKey
 changes; the engine's version isn't in it (it's only known once the worker
 has started), but is kept with each page. Every file is written whole or
 not at all, so a run stopped at any point is taken up where it stopped.
+Several runs may keep pages in the same store at once (two programs, or the
+same one run twice): each file is written through a temporary file of its
+own, and what's rewritten from what was there (`orient-<engine>.json`) is
+under a lock.
 The pages hold the documents' text: keep `ocr_dir` out of version control,
 as the scans.
 """
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+import os
+import secrets
+import sys
+import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 from scriptorium.engines import Engine
 from scriptorium.files import absolute_path
@@ -32,6 +47,16 @@ from scriptorium.models import EngineInfo, OcrPage, OcrWord, Orientation, Stored
 from scriptorium.preprocess import REVISION as PREPROCESS_REVISION
 from scriptorium.raster import PagePlan
 from scriptorium.worker import PROTOCOL
+
+# Windows doesn't let a file be replaced while another process has it open, nor opened while
+# it's being replaced: with two runs on the same store, either is tried again for this long.
+_BUSY_SECONDS = 10.0
+_BUSY_CAN_PASS = sys.platform == "win32"
+
+
+class UnreadableFile(ValueError):
+    """A file of the store that's there but can't be read (e.g. left broken by two runs that
+    wrote it at once, before each wrote through a temporary file of its own)."""
 
 
 @dataclass(frozen=True)
@@ -108,7 +133,7 @@ class Store:
         """How long the longest path written for a page read with `key` is, as an absolute
         path: a failure's, while it's written (of pages up to 9999)."""
         path = absolute_path(self._failure_path("0" * 64, key, 1))
-        return len(str(path)) + len(".part")
+        return len(str(_part_of(path)))
 
     def note_source(
         self, sha256: str, name: str, pages: Sequence[PagePlan], path: Path | None = None
@@ -138,7 +163,7 @@ class Store:
         path = self.root / sha256 / "source.json"
         if not path.exists():
             return []
-        return [Path(p) for p in json.loads(path.read_text(encoding="utf-8")).get("paths", [])]
+        return [Path(p) for p in _read_json(path).get("paths", [])]
 
     def done(self, sha256: str, key: RunKey) -> set[int]:
         """The pages of the file read with `key`."""
@@ -152,14 +177,14 @@ class Store:
         failures = {}
         for path in self.folder(sha256, key).glob("page-*.failed.json"):
             page = int(path.name.removeprefix("page-").removesuffix(".failed.json"))
-            failures[page] = str(json.loads(path.read_text(encoding="utf-8")).get("error"))
+            failures[page] = str(_read_json(path).get("error"))
         return failures
 
     def load(self, sha256: str, key: RunKey, page: int) -> StoredPage | None:
         path = self._page_path(sha256, key, page)
         if not path.exists():
             return None
-        return _stored_page(json.loads(path.read_text(encoding="utf-8")))
+        return _stored_page(_read_json(path))
 
     def readings(self, sha256: str) -> dict[int, list[tuple[str, StoredPage]]]:
         """Every page of the file read so far, by page: with which engine, and what it read.
@@ -171,8 +196,8 @@ class Store:
             run = path.parent / "run.json"
             engine = path.parent.name
             if run.exists():
-                engine = str(json.loads(run.read_text(encoding="utf-8")).get("engine", engine))
-            stored = _stored_page(json.loads(path.read_text(encoding="utf-8")))
+                engine = str(_read_json(run).get("engine", engine))
+            stored = _stored_page(_read_json(path))
             found.setdefault(stored.page.page, []).append((engine, stored))
         return found
 
@@ -181,7 +206,8 @@ class Store:
         if not (folder / "run.json").exists():
             _write_json(folder / "run.json", key.as_dict())
         _write_json(self._page_path(sha256, key, stored.page.page), _page_data(stored))
-        self._failure_path(sha256, key, stored.page.page).unlink(missing_ok=True)
+        failure = self._failure_path(sha256, key, stored.page.page)
+        _when_free(lambda: failure.unlink(missing_ok=True))
 
     def save_failure(
         self, sha256: str, key: RunKey, page: int, error: str, engine: EngineInfo | None
@@ -195,25 +221,36 @@ class Store:
         )
 
     def orientations(self, sha256: str, engine: str) -> dict[int, Orientation]:
-        """How each page of the file is turned, as `engine` told."""
+        """How each page of the file is turned, as `engine` told.
+
+        Raises `UnreadableFile` if what's kept can't be read; it's rewritten as pages are told
+        again (`save_orientation`).
+        """
         path = self.root / sha256 / f"orient-{engine}.json"
         if not path.exists():
             return {}
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return {
-            int(page): Orientation(int(value["rotate"]), float(value["confidence"]))
-            for page, value in data.items()
-        }
+        try:
+            return {
+                int(page): Orientation(int(value["rotate"]), float(value["confidence"]))
+                for page, value in _read_json(path).items()
+            }
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise UnreadableFile(f"{path} can't be read ({type(e).__name__}: {e})") from e
 
     def save_orientation(
         self, sha256: str, engine: str, page: int, orientation: Orientation
     ) -> None:
-        found = self.orientations(sha256, engine)
-        found[page] = orientation
-        _write_json(
-            self.root / sha256 / f"orient-{engine}.json",
-            {str(p): asdict(o) for p, o in sorted(found.items())},
-        )
+        # Under the lock, so that what another run keeps meanwhile isn't written over.
+        with _locked(self.root / sha256 / f"orient-{engine}.lock"):
+            try:
+                found = self.orientations(sha256, engine)
+            except UnreadableFile:
+                found = {}  # the other pages are told again
+            found[page] = orientation
+            _write_json(
+                self.root / sha256 / f"orient-{engine}.json",
+                {str(p): asdict(o) for p, o in sorted(found.items())},
+            )
 
     def files(self) -> list[str]:
         """The SHA-256 of every file something is kept of."""
@@ -226,7 +263,7 @@ class Store:
         path = self.root / sha256 / "source.json"
         if not path.exists():
             return None
-        return str(json.loads(path.read_text(encoding="utf-8")).get("name"))
+        return str(_read_json(path).get("name"))
 
     def runs(self, sha256: str) -> list[tuple[Path, str]]:
         """The folders of the file's pages read with each RunKey, and the engine of each."""
@@ -234,7 +271,7 @@ class Store:
         for folder in sorted((self.root / sha256).iterdir()):
             run = folder / "run.json"
             if folder.is_dir() and run.exists():
-                engine = json.loads(run.read_text(encoding="utf-8")).get("engine")
+                engine = _read_json(run).get("engine")
                 found.append((folder, str(engine)))
         return found
 
@@ -247,7 +284,7 @@ class Store:
             if engine != key.engine or folder.name == key.slug:
                 continue
             if any(folder.glob("page-[0-9][0-9][0-9][0-9].json")):
-                found.append(json.loads((folder / "run.json").read_text(encoding="utf-8")))
+                found.append(_read_json(folder / "run.json"))
         return found
 
     def scratch(self) -> Path:
@@ -257,10 +294,11 @@ class Store:
         return folder
 
     def new_log(self, engine: str) -> Path:
-        """A log file for one run of `engine`'s worker."""
+        """A log file for one run of `engine`'s worker (with the process ID, as two runs may
+        start in the same second)."""
         folder = self.root / "logs"
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f"{datetime.now():%Y%m%d-%H%M%S}-{engine}.log"
+        return folder / f"{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}-{engine}.log"
 
 
 def _page_data(stored: StoredPage) -> dict[str, Any]:
@@ -282,12 +320,67 @@ def _stored_page(data: dict[str, Any]) -> StoredPage:
     )
 
 
+def _read_json(path: Path) -> Any:
+    return json.loads(_when_free(lambda: path.read_text(encoding="utf-8")))
+
+
 def _write_json(path: Path, data: Any) -> None:
     """Write `data` to `path` whole or not at all."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    part = path.with_name(path.name + ".part")
-    part.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    part.replace(path)
+    part = _part_of(path)
+    try:
+        part.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        _when_free(lambda: part.replace(path))
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+
+
+def _part_of(path: Path) -> Path:
+    """The temporary file `path` is written to first: one of its own for each time, so that
+    two runs writing the same file at once don't write into the same one."""
+    return path.with_name(f"{path.name}.{secrets.token_hex(4)}.part")
+
+
+def _when_free[T](action: Callable[[], T]) -> T:
+    """`action`, tried again for a while if another process has the file (see `_BUSY_SECONDS`)."""
+    waited, pause = 0.0, 0.01
+    while True:
+        try:
+            return action()
+        except PermissionError:
+            if not _BUSY_CAN_PASS or waited >= _BUSY_SECONDS:
+                raise
+        time.sleep(pause)
+        waited += pause
+        pause = min(pause * 2, 0.2)
+
+
+@contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """Hold the lock file `path` while in the block, against other processes too. The system
+    lets it go if the process ends, so a run stopped doesn't leave it held."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as file:
+        if sys.platform == "win32":
+            while True:
+                file.seek(0)
+                try:
+                    msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:  # held by another process
+                    time.sleep(0.01)
+            try:
+                yield
+            finally:
+                file.seek(0)
+                msvcrt.locking(file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(file, fcntl.LOCK_UN)
 
 
 def _is_sha256(name: str) -> bool:

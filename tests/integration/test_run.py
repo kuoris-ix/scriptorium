@@ -327,6 +327,23 @@ def test_a_page_whose_turn_can_t_be_told_fails_and_is_told_again_next_time(
     assert store.orientations(found[0].sha256, "fake") == {1: Orientation(0, 9.0)}
 
 
+def test_turns_kept_unreadable_are_told_again(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch)
+    found = targets(folder=scans)
+    broken = store.root / found[0].sha256 / "orient-fake.json"
+    broken.parent.mkdir(parents=True)
+    broken.write_text('{"1": {"rot', encoding="utf-8")
+    said: list[str] = []
+
+    outcome = run(found, store, orient=ENGINE, orient_min_confidence=2.0, say=said.append)
+
+    assert (outcome.read, outcome.error) == (2, None)
+    assert store.orientations(found[0].sha256, "fake") == {1: Orientation(0, 9.0)}
+    assert any("orient-fake.json can't be read" in line for line in said)
+
+
 def test_a_page_that_can_t_be_rendered_fails_alone(
     scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
