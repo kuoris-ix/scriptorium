@@ -41,9 +41,10 @@ SETTINGS = (
     "min_dpi",
     "max_dpi",
     "worker_pages",
+    "jobs",
 )
 # Those shown with where they're from (see `OcrConfig.origins`).
-SHOWN = ("engines", "device", "orient", "preprocess", "workers_dir")
+SHOWN = ("engines", "device", "orient", "preprocess", "jobs", "workers_dir")
 
 
 class SettingError(Exception):
@@ -118,6 +119,17 @@ def _number[T: (int, float)](given: Given, name: str, default: T, kind: Callable
         raise SettingError(f"{origin}: not a number: {text!r}") from None
 
 
+def _jobs(given: Given) -> int | None:
+    """The workers each engine reads with: a number of at least 1, or "auto" (None)."""
+    text = given.get("jobs")
+    if text is None or text == "auto":
+        return None
+    if not text.isdigit() or int(text) < 1:
+        origin = given.origins[f"{PREFIX}JOBS"]
+        raise SettingError(f"{origin}: {text!r} is neither auto nor a number of workers")
+    return int(text)
+
+
 def config(environ: Mapping[str, str] = os.environ, env_file: Path = ENV_FILE) -> OcrConfig:
     """The settings, from the environment and `env_file`; else the defaults."""
     found = given(environ, env_file)
@@ -138,6 +150,7 @@ def config(environ: Mapping[str, str] = os.environ, env_file: Path = ENV_FILE) -
         min_dpi=_number(found, "min_dpi", 300, int),
         max_dpi=_number(found, "max_dpi", 600, int),
         worker_pages=_number(found, "worker_pages", 1000, int),
+        jobs=_jobs(found),
         origins={
             name: found.origins[PREFIX + name.upper()]
             for name in SHOWN

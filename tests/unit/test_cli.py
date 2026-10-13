@@ -75,6 +75,14 @@ def test_the_defaults_read_into_the_working_folder_with_the_clone_s_workers() ->
     )
 
 
+@pytest.mark.parametrize(("value", "jobs"), [("4", 4), ("auto", None), ("", None)])
+def test_the_workers_to_read_with_are_a_number_or_auto(value: str, jobs: int | None) -> None:
+    config = cli.config({"SCRIPTORIUM_JOBS": value}, Path(".env"))
+
+    assert config.jobs == jobs
+    assert config.origin("jobs") == ("SCRIPTORIUM_JOBS" if value else "default")
+
+
 def test_a_setting_given_empty_is_as_not_given() -> None:
     config = cli.config({"SCRIPTORIUM_DEVICE": "", "SCRIPTORIUM_MIN_DPI": ""}, Path(".env"))
 
@@ -87,6 +95,8 @@ def test_a_setting_given_empty_is_as_not_given() -> None:
         ({"SCRIPTORIUM_ENGINS": "x"}, "no setting SCRIPTORIUM_ENGINS (there are: SCRIPTORIUM_DIR,"),
         ({"SCRIPTORIUM_DEVICE": "gpu"}, "SCRIPTORIUM_DEVICE: 'gpu' is not one of auto, cpu"),
         ({"SCRIPTORIUM_MIN_DPI": "high"}, "SCRIPTORIUM_MIN_DPI: not a number: 'high'"),
+        ({"SCRIPTORIUM_JOBS": "0"}, "SCRIPTORIUM_JOBS: '0' is neither auto nor a number of"),
+        ({"SCRIPTORIUM_JOBS": "many"}, "SCRIPTORIUM_JOBS: 'many' is neither auto nor a number"),
     ],
 )
 def test_a_setting_that_can_t_be_used_is_an_error(variables: dict[str, str], message: str) -> None:

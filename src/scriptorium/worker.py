@@ -3,13 +3,16 @@
 The other side, and the messages, are in workers/ocr_worker.py. A
 worker is started once and reads page after page (loading an engine's
 models takes long); what it prints besides its answers, and its stderr,
-go to a log file.
+go to a log file. It runs at a low priority, with what it starts (uv, the
+engine, Tesseract's commands): what else runs on the machine comes first.
 """
 
+import contextlib
 import json
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +27,7 @@ MARK = "@@scriptorium@@ "
 # Variables that would make the worker's uv or Python use the program's environment.
 _NOT_PASSED = ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "PYTHONHOME", "PYTHONPATH")
 _STOP_SECONDS = 30
+_NICENESS = 10  # added to the worker's niceness on Linux and macOS (19 is the lowest priority)
 
 
 class WorkerFailed(Exception):
@@ -78,9 +82,17 @@ class Worker:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                # On Windows, what it starts gets the same priority.
+                creationflags=getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0),
             )
         except OSError as e:
             raise WorkerFailed(f"couldn't run {command[0]}: {e}") from e
+        if sys.platform != "win32":
+            # Right after it starts, before uv starts the worker's Python (which gets the same
+            # niceness); not in the child before it runs (preexec_fn), unsafe with threads.
+            # If it has already ended, that's told when it's talked with.
+            with contextlib.suppress(OSError):
+                os.setpriority(os.PRIO_PROCESS, self.process.pid, _NICENESS)
 
     def __enter__(self) -> Self:
         return self

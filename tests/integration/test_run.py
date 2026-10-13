@@ -410,3 +410,107 @@ def test_pages_go_through_the_preprocessing_steps_and_are_kept_apart(
     assert store.done(sha, key()) == set()
     assert steps_key.as_dict()["preprocess"] == ["flatten", "deskew"]
     assert "preprocess" not in key().as_dict()
+
+
+@pytest.mark.parametrize("jobs", [2, 3])
+def test_several_workers_read_as_one_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, jobs: int
+) -> None:
+    # Two files whose pages have the same numbers, rendered at once (in processes), at
+    # different sizes; each page turned, a turn told on some, and preprocessed.
+    first = write_pdf(tmp_path / "first.pdf", [a4_scan(100, [(50, 60, 300, 120)])] * 3)
+    second = write_pdf(tmp_path / "second.pdf", [a4_scan(150)] * 3)
+    found = targets(first, second, folder=tmp_path)
+    fake(monkeypatch, turns={"2": [90, 10.0]})
+    alone, together = Store(tmp_path / "alone"), Store(tmp_path / "together")
+    options: dict[str, Any] = {
+        "orient": ENGINE,
+        "orient_min_confidence": 2.0,
+        "steps": ("deskew",),
+    }
+
+    one = run(found, alone, **options)
+    several = run(found, together, jobs=jobs, orient_jobs=jobs, **options)
+
+    assert (one.read, several.read, several.failed, several.left) == (6, 6, 0, 0)
+    kept = RunKey.of(
+        ENGINE,
+        min_dpi=MIN_DPI,
+        max_dpi=MAX_DPI,
+        orient="fake",
+        orient_min_confidence=2.0,
+        preprocess=("deskew",),
+    )
+    sizes = set()
+    for target in found:
+        assert together.orientations(target.sha256, "fake") == alone.orientations(
+            target.sha256, "fake"
+        )
+        for page in (1, 2, 3):
+            expected, read = (
+                alone.load(target.sha256, kept, page),
+                together.load(target.sha256, kept, page),
+            )
+            assert expected is not None and read is not None
+            assert (read.page, read.extra) == (expected.page, expected.extra)
+            sizes.add(tuple(read.extra["size"]))
+    assert len(sizes) == 4  # each file's pages, upright and turned a quarter
+
+
+def test_a_page_one_of_the_workers_stops_on_fails_and_the_others_are_read(
+    tmp_path: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_pdf(tmp_path / "six.pdf", [a4_scan(100)] * 6)
+    found = targets(path, folder=tmp_path)
+    fake(monkeypatch, crash=[3])
+
+    outcome = run(found, store, jobs=2)
+
+    assert (outcome.read, outcome.failed, outcome.left) == (5, 1, 0)
+    assert "the worker stopped" in store.failed(found[0].sha256, key())[3]
+
+
+def test_workers_that_can_t_start_leave_every_page(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch, devices=["cpu"])
+
+    outcome = run(targets(folder=scans), store, device="cuda", jobs=2)
+
+    assert (outcome.read, outcome.failed, outcome.left) == (0, 0, 2)
+    assert outcome.error is not None and outcome.error.startswith("couldn't start: ")
+
+
+def test_no_more_workers_start_than_there_are_pages(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch)
+    said: list[str] = []
+
+    outcome = run(targets(folder=scans), store, jobs=8, say=said.append)
+
+    assert (outcome.read, outcome.failed) == (2, 0)
+    assert sum(line.startswith("fake 1.0 ") for line in said) == 2
+    assert [line.split("]")[0] for line in said if line.startswith("  [")] == [
+        "  [1/2",
+        "  [2/2",
+    ]
+
+
+@pytest.mark.parametrize("jobs", [1, 2])
+def test_a_run_stopped_midway_stops_its_workers_and_keeps_what_was_read(
+    tmp_path: Path, store: Store, monkeypatch: pytest.MonkeyPatch, jobs: int
+) -> None:
+    path = write_pdf(tmp_path / "six.pdf", [a4_scan(100)] * 6)
+    found = targets(path, folder=tmp_path)
+    fake(monkeypatch)
+
+    def stop(line: str) -> None:
+        if line.startswith("  [1/"):
+            raise KeyboardInterrupt  # as Ctrl+C would, once a page is kept
+
+    with pytest.raises(KeyboardInterrupt):
+        run(found, store, jobs=jobs, say=stop)
+
+    assert 1 <= len(store.done(found[0].sha256, key())) < 6
+    assert list((store.root / "tmp").iterdir()) == []  # the pages rendered ahead are gone

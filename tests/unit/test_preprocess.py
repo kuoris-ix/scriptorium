@@ -1,3 +1,4 @@
+import pickle
 import random
 
 import pytest
@@ -49,6 +50,15 @@ def test_a_box_on_a_rotated_image_comes_back_where_it_was() -> None:
     assert ((x0 + x1) / 2, (y0 + y1) / 2) == pytest.approx((150, 75), abs=1.5)
     assert x0 <= 101 and y0 <= 51 and x1 >= 199 and y1 >= 99
     assert turned.width > image.width
+
+
+def test_the_way_back_goes_to_another_process_as_it_is() -> None:
+    turn = preprocess.Step("turn", "", lambda image: preprocess.rotated(image, 4))
+    _, back = preprocess.apply(scan((600, 400)), [preprocess.STEPS["flatten"], turn])
+
+    again = pickle.loads(pickle.dumps(back))
+
+    assert again((10, 20, 110, 70)) == back((10, 20, 110, 70)) != (10, 20, 110, 70)
 
 
 def test_flatten_evens_out_a_shadow_and_keeps_the_text() -> None:

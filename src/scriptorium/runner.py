@@ -9,11 +9,23 @@ With an engine to tell how pages are turned (`orient`), each page is first
 told (and that's kept too), then turned upright before it's read; then come
 the preprocessing steps asked for (`preprocess`). What's read is put back
 through them all onto the page as it is.
+
+The pages are rendered ahead of the workers, in the background: in a
+thread with one worker, in as many processes as workers with several
+(`jobs`, see the module `jobs`), so that a worker is never left waiting for
+its next page. The workers share the pages, each taking the next; what each
+reads is kept as soon as it's read, in the thread that runs them.
 """
 
+import functools
 import hashlib
+import queue
+import signal
 import tempfile
+import threading
+from collections import deque
 from collections.abc import Callable, Sequence
+from concurrent.futures import Executor, Future, ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import IO
@@ -130,15 +142,18 @@ def run(
     orient_min_confidence: float = ORIENT_MIN_CONFIDENCE,
     steps: Sequence[str] = (),
     worker_pages: int = 0,
+    jobs: int = 1,
+    orient_jobs: int = 1,
     say: Say = lambda _: None,
 ) -> Outcome:
     """Read the pages of `targets` not read yet with `engine`, keeping each in `store`.
 
-    With `orient`, the pages are first turned upright as that engine tells;
-    then each of the preprocessing `steps` (names, see `preprocess`) is done.
-    The worker is started again after every `worker_pages` pages (0 or less: never).
+    With `orient`, the pages are first turned upright as that engine tells (with
+    `orient_jobs` workers); then each of the preprocessing `steps` (names, see `preprocess`)
+    is done. `jobs` workers read at once. Each is started again after every `worker_pages`
+    pages it reads (0 or less: never).
     """
-    chosen = preprocess.steps(steps)
+    preprocess.steps(steps)  # raises KeyError for a step there isn't, before anything's read
     key = RunKey.of(
         engine,
         min_dpi=min_dpi,
@@ -157,79 +172,56 @@ def run(
     if not work:
         return outcome
 
-    total = len(work)
+    total, handled = len(work), 0
     outcome.log = store.new_log(engine.name)
-    stops_in_a_row = 0
     with (
         outcome.log.open("a", encoding="utf-8") as log,
         tempfile.TemporaryDirectory(dir=store.scratch()) as scratch,
     ):
+        context = _Context(store, workers_dir, launcher, Path(scratch), password, log, say)
         turns: dict[str, dict[int, Orientation]] = {}
         untold: dict[tuple[str, int], str] = {}  # why a page's turn couldn't be told
         if orient is not None:
-            context = _Context(store, workers_dir, launcher, Path(scratch), password, log, say)
-            outcome.error, untold = _orient(work, orient, context)
+            outcome.error, untold = _orient(work, orient, context, jobs=orient_jobs)
             if outcome.error is not None:
                 outcome.left = len(work)
                 return outcome
             turns = {t.sha256: _orientations(store, t.sha256, orient.name, say) for t, _ in work}
-        while work:
-            info = None
-            try:
-                with Worker(launcher(engine, workers_dir), log) as worker:
-                    info = outcome.engine = worker.start(device, engine.options)
-                    model = info.model or "its default model"
-                    say(f"{info.name} {info.version} ({model}) on {info.device or '?'}")
-                    given = 0  # pages this worker has been given
-                    while work:
-                        if worker_pages > 0 and given >= worker_pages:
-                            say(f"starting the worker again (after {given} pages)")
-                            break
-                        given += 1
-                        target, page = work[0]
-                        told = turns.get(target.sha256, {}).get(page.page)
-                        clockwise = (
-                            told.rotate if told and told.confidence >= orient_min_confidence else 0
-                        )
-                        read: StoredPage | str
-                        if orient is not None and told is None:
-                            # Not read the way it might be turned: told and read again next time.
-                            why = untold.get((target.sha256, page.page), "not told")
-                            read = f"couldn't tell how it's turned: {why}"
-                        else:
-                            read = _read_page(
-                                worker,
-                                info,
-                                target,
-                                page,
-                                Path(scratch),
-                                password,
-                                clockwise=clockwise,
-                                steps=chosen,
-                            )
-                        work.pop(0)
-                        stops_in_a_row = 0
-                        if isinstance(read, StoredPage):
-                            store.save(target.sha256, key, read)
-                        else:
-                            store.save_failure(target.sha256, key, page.page, read, info)
-                        say(_tally(outcome, target, page, read, f"[{total - len(work)}/{total}]"))
-            except WorkerFailed as e:
-                if info is None:  # it couldn't start: leave the rest
-                    outcome.error = f"couldn't start: {e}"
-                    break
-                # It stopped on the first page left, so that page failed.
-                target, page = work.pop(0)
-                error = f"the worker stopped: {e}"
-                store.save_failure(target.sha256, key, page.page, error, info)
-                say(_tally(outcome, target, page, error, f"[{total - len(work)}/{total}]"))
-                stops_in_a_row += 1
-                if stops_in_a_row >= MAX_STOPS_IN_A_ROW:
-                    outcome.error = f"the worker stopped {stops_in_a_row} times in a row"
-                    break
-                if work:
-                    say("starting the worker again")
-    outcome.left = len(work)
+
+        def done(
+            target: Target, page: PagePlan, read: StoredPage | _Failure, info: EngineInfo | None
+        ) -> None:
+            nonlocal handled
+            handled += 1
+            if isinstance(read, _Failure):
+                store.save_failure(target.sha256, key, page.page, read.why, info)
+            else:
+                store.save(target.sha256, key, read)
+            shown = read.why if isinstance(read, _Failure) else read
+            say(_tally(outcome, target, page, shown, f"[{handled}/{total}]"))
+
+        to_read = []
+        for target, page in work:
+            told = turns.get(target.sha256, {}).get(page.page)
+            if orient is not None and told is None:
+                # Not read the way it might be turned: told and read again next time.
+                why = untold.get((target.sha256, page.page), "not told")
+                done(target, page, _Failure(f"couldn't tell how it's turned: {why}"), None)
+                continue
+            clockwise = told.rotate if told and told.confidence >= orient_min_confidence else 0
+            to_read.append(_Page(target, page, clockwise))
+        if to_read:
+            outcome.engine, outcome.error, outcome.left = _work_through(
+                to_read,
+                engine,
+                context,
+                jobs=jobs,
+                device=device,
+                steps=tuple(steps),
+                worker_pages=worker_pages,
+                ask=_read,
+                done=done,
+            )
     return outcome
 
 
@@ -247,7 +239,7 @@ class _Context:
 
 
 def _orient(
-    work: Sequence[tuple[Target, PagePlan]], orient: Engine, c: _Context
+    work: Sequence[tuple[Target, PagePlan]], orient: Engine, c: _Context, *, jobs: int
 ) -> tuple[str | None, dict[tuple[str, int], str]]:
     """Have `orient` tell how each page of `work` not told yet is turned, keeping each.
 
@@ -255,38 +247,33 @@ def _orient(
     couldn't tell each page it couldn't (not kept, so told again next time).
     """
     told = {t.sha256: _orientations(c.store, t.sha256, orient.name, c.say) for t, _ in work}
-    todo = [(t, p) for t, p in work if p.page not in told[t.sha256]]
+    todo = [_Page(t, p, 0) for t, p in work if p.page not in told[t.sha256]]
     untold: dict[tuple[str, int], str] = {}
     if not todo:
         return None, untold
     c.say(f"telling how {len(todo)} page(s) are turned, with {orient.name}")
-    try:
-        with Worker(c.launcher(orient, c.workers_dir), c.log) as worker:
-            worker.start("auto", orient.options)
-            for target, page in todo:
-                where = f"  {target.name} p{page.page}"
-                image_path = c.scratch / f"page-{page.page}.png"
-                try:
-                    image_path, _, _ = _save_image(target, page, c.scratch, c.password)
-                    orientation = worker.orient(f"{target.sha256[:12]}-p{page.page}", image_path)
-                except PageFailed as e:
-                    untold[target.sha256, page.page] = str(e)
-                    c.say(f"{where}: couldn't tell how it's turned: {e}")
-                    continue
-                except (OSError, ValueError) as e:  # rendering the page
-                    untold[target.sha256, page.page] = f"{type(e).__name__}: {e}"
-                    c.say(f"{where}: couldn't render it: {type(e).__name__}: {e}")
-                    continue
-                finally:
-                    image_path.unlink(missing_ok=True)
-                c.store.save_orientation(target.sha256, orient.name, page.page, orientation)
-                if orientation.rotate:
-                    c.say(
-                        f"{where}: turned {orientation.rotate} degrees clockwise to be upright "
-                        f"(confidence {orientation.confidence:g})"
-                    )
-    except WorkerFailed as e:
-        return f"couldn't tell how pages are turned with {orient.name}: {e}", untold
+
+    def done(
+        target: Target, page: PagePlan, turn: Orientation | _Failure, _: EngineInfo | None
+    ) -> None:
+        where = f"  {target.name} p{page.page}"
+        if isinstance(turn, _Failure):
+            untold[target.sha256, page.page] = turn.why
+            what = "couldn't render it" if turn.rendering else "couldn't tell how it's turned"
+            c.say(f"{where}: {what}: {turn.why}")
+            return
+        c.store.save_orientation(target.sha256, orient.name, page.page, turn)
+        if turn.rotate:
+            c.say(
+                f"{where}: turned {turn.rotate} degrees clockwise to be upright "
+                f"(confidence {turn.confidence:g})"
+            )
+
+    _, error, _ = _work_through(
+        todo, orient, c, jobs=jobs, device="auto", steps=(), worker_pages=0, ask=_tell, done=done
+    )
+    if error is not None:
+        return f"couldn't tell how pages are turned with {orient.name}: {error}", untold
     return None, untold
 
 
@@ -299,69 +286,292 @@ def _orientations(store: Store, sha256: str, engine: str, say: Say) -> dict[int,
         return {}
 
 
-def _save_image(
-    target: Target,
-    page: PagePlan,
-    scratch: Path,
-    password: str | None,
+@dataclass(frozen=True)
+class _Page:
+    """A page to have a worker read (or tell how it's turned), turned `clockwise` first."""
+
+    target: Target
+    page: PagePlan
+    clockwise: int
+
+
+@dataclass(frozen=True)
+class _Ready:
+    """A page rendered, turned and preprocessed, as a PNG for a worker."""
+
+    image: Path
+    size: tuple[int, int]  # as rendered
+    back: preprocess.Back  # from a box on the PNG to one on the page as rendered
+
+
+@dataclass(frozen=True)
+class _Failure:
+    """Why a page couldn't be read (or told); `rendering` if it couldn't even be rendered."""
+
+    why: str
+    rendering: bool = False
+
+
+@dataclass(frozen=True)
+class _Over:
+    """A worker's thread has ended; why it gave up the pages left, if it did."""
+
+    error: str | None
+
+
+def _read(worker: Worker, info: EngineInfo, page: _Page, ready: _Ready) -> StoredPage:
+    """What the worker reads on the page. Raises `PageFailed` if it couldn't, `WorkerFailed` if
+    it stopped, ValueError if what it wrote isn't a result."""
+    output = ready.image.with_suffix(".json")
+    try:
+        seconds = worker.read(_page_id(page), ready.image, output)
+        result = _put_back(load_result(output), ready.back)
+    finally:
+        output.unlink(missing_ok=True)
+    return StoredPage(
+        page=to_page(page.page, ready.size, result),
+        engine=info,
+        seconds=seconds,
+        extra=result.extra,
+    )
+
+
+def _tell(worker: Worker, info: EngineInfo, page: _Page, ready: _Ready) -> Orientation:
+    """How the worker's engine tells the page is turned (raises as `_read`)."""
+    return worker.orient(_page_id(page), ready.image)
+
+
+def _page_id(page: _Page) -> str:
+    return f"{page.target.sha256[:12]}-p{page.page.page}"
+
+
+def _work_through[T](
+    pages: Sequence[_Page],
+    engine: Engine,
+    c: _Context,
     *,
-    clockwise: int = 0,
-    steps: Sequence[preprocess.Step] = (),
-) -> tuple[Path, tuple[int, int], preprocess.Back]:
-    """The page rendered, turned `clockwise` and through `steps`, as a PNG in `scratch`.
+    jobs: int,
+    device: str,
+    steps: tuple[str, ...],
+    worker_pages: int,
+    ask: Callable[[Worker, EngineInfo, _Page, _Ready], T],
+    done: Callable[[Target, PagePlan, T | _Failure, EngineInfo | None], None],
+) -> tuple[EngineInfo | None, str | None, int]:
+    """Have `jobs` workers of `engine` take `pages` in turn, each rendered ahead (see the
+    module's description), and `ask` a worker about each; `done` is told how each went, here,
+    in this thread.
 
-    Also its size as rendered, and the way back from a box on the PNG to one on the page
-    as rendered.
+    Returns what a worker told of its engine (if one started), why pages were left (none of
+    the workers could start, or each stopped too often in a row), and how many.
     """
-    image = raster.render(target.path, page, password=password)
-    size = image.size
-    upright = raster.turn(image, clockwise)
-    ready, back_steps = preprocess.apply(upright, steps)
-    # Named after the page, for whoever reads the log.
-    path = scratch / f"page-{page.page}.png"
-    # With its resolution: some engines (Tesseract) size the text by it.
-    dpi = image.width / (page.width / 72)
-    ready.save(path, compress_level=1, dpi=(dpi, dpi))
+    jobs = max(1, min(jobs, len(pages)))
+    supply = _Supply(pages, c, steps, jobs)
+    messages: queue.Queue[Callable[[], None] | _Over] = queue.Queue()
+    stopping = threading.Event()
+    running: set[Worker] = set()
+    lock = threading.Lock()
+    started: list[EngineInfo] = []
 
-    def back(box: preprocess.Box) -> preprocess.Box:
-        return raster.turn_back(back_steps(box), clockwise, size)
+    def tell(text: str) -> None:
+        messages.put(functools.partial(c.say, text))
 
-    return path, size, back
+    def serve() -> str | None:
+        """Read with one worker while there are pages; why it gave up, if it did."""
+        stops = 0
+        while not stopping.is_set():
+            info, taken = None, None
+            try:
+                with Worker(c.launcher(engine, c.workers_dir), c.log) as worker:
+                    with lock:
+                        running.add(worker)
+                    try:
+                        info = worker.start(device, engine.options)
+                        messages.put(functools.partial(_started, started, info, c.say))
+                        given = 0  # pages this worker has been given
+                        while not stopping.is_set():
+                            if worker_pages > 0 and given >= worker_pages:
+                                tell(f"starting the worker again (after {given} pages)")
+                                break
+                            taken = supply.next()
+                            if taken is None:
+                                return None
+                            given += 1
+                            page, ready = taken
+                            answer = _ask(worker, info, page, ready, ask)
+                            taken, stops = None, 0
+                            messages.put(
+                                functools.partial(done, page.target, page.page, answer, info)
+                            )
+                    finally:
+                        with lock:
+                            running.discard(worker)
+            except WorkerFailed as e:
+                if stopping.is_set():
+                    return None
+                if info is None:  # it couldn't start: leave its pages to the others
+                    return f"couldn't start: {e}"
+                if taken is not None:  # it stopped on that page, so that page failed
+                    page, _ = taken
+                    failure = _Failure(f"the worker stopped: {e}")
+                    messages.put(functools.partial(done, page.target, page.page, failure, info))
+                stops += 1
+                if stops >= MAX_STOPS_IN_A_ROW:
+                    return f"the worker stopped {stops} times in a row"
+                tell("starting the worker again")
+        return None
+
+    def thread() -> None:
+        error = None
+        try:
+            error = serve()
+        except BaseException as e:  # told in the main thread, which stops
+            messages.put(functools.partial(_raise, e))
+        finally:
+            messages.put(_Over(error))
+
+    threads = [threading.Thread(target=thread, daemon=True) for _ in range(jobs)]
+    error = None
+    try:
+        for t in threads:
+            t.start()
+        active = len(threads)
+        while active:
+            try:
+                # Not waiting long at once: on Windows, Ctrl+C is had only between waits.
+                message = messages.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if isinstance(message, _Over):
+                active -= 1
+                error = message.error or error
+            else:
+                message()
+    finally:
+        # Stopped (Ctrl+C, an error): the workers are stopped too, their pages left.
+        stopping.set()
+        with lock:
+            for worker in running:
+                worker.process.kill()
+        for t in threads:
+            t.join()
+        left = supply.close()
+    return (started[-1] if started else None), (error if left else None), left
 
 
-def _read_page(
+def _started(started: list[EngineInfo], info: EngineInfo, say: Say) -> None:
+    started.append(info)
+    say(f"{info.name} {info.version} ({info.model or 'its default model'}) on {info.device or '?'}")
+
+
+def _raise(error: BaseException) -> None:
+    raise error
+
+
+def _ask[T](
     worker: Worker,
     info: EngineInfo,
-    target: Target,
-    page: PagePlan,
-    scratch: Path,
-    password: str | None,
-    *,
-    clockwise: int = 0,
-    steps: Sequence[preprocess.Step] = (),
-) -> StoredPage | str:
-    """One page read with `worker` (turned `clockwise` and through `steps` first), or why
-    it couldn't be.
+    page: _Page,
+    ready: Future[_Ready],
+    ask: Callable[[Worker, EngineInfo, _Page, _Ready], T],
+) -> T | _Failure:
+    """`ask`'s answer about `page`, once it's ready, or why there's none.
 
     Raises `WorkerFailed` if the worker stops.
     """
-    image_path, output = scratch / f"page-{page.page}.png", scratch / f"page-{page.page}.json"
+    prepared = None
     try:
-        image_path, size, back = _save_image(
-            target, page, scratch, password, clockwise=clockwise, steps=steps
-        )
-        seconds = worker.read(f"{target.sha256[:12]}-p{page.page}", image_path, output)
-        result = _put_back(load_result(output), back)
+        try:
+            prepared = ready.result()
+        except (OSError, ValueError) as e:  # pdfplumber and PIL, as `plan` found the pages
+            return _Failure(f"{type(e).__name__}: {e}", rendering=True)
+        return ask(worker, info, page, prepared)
     except PageFailed as e:
-        return str(e)
-    except (OSError, ValueError) as e:  # rendering, or what the worker wrote
-        return f"{type(e).__name__}: {e}"
+        return _Failure(str(e))
+    except (OSError, ValueError) as e:  # what the worker wrote
+        return _Failure(f"{type(e).__name__}: {e}")
     finally:
-        image_path.unlink(missing_ok=True)
-        output.unlink(missing_ok=True)
-    return StoredPage(
-        page=to_page(page, size, result), engine=info, seconds=seconds, extra=result.extra
-    )
+        if prepared is not None:
+            prepared.image.unlink(missing_ok=True)
+
+
+class _Supply:
+    """The pages, handed out to the workers in turn, each rendered ahead: a few more than
+    there are workers, in a thread with one worker, in as many processes as workers with
+    more (pdfium renders one page at a time in a process)."""
+
+    def __init__(
+        self, pages: Sequence[_Page], c: _Context, steps: tuple[str, ...], jobs: int
+    ) -> None:
+        self.waiting = deque(pages)
+        self.ahead: deque[tuple[_Page, Future[_Ready]]] = deque()
+        self.lock = threading.Lock()
+        self.depth = jobs + 1
+        self.c, self.steps = c, steps
+        self.renderer: Executor = (
+            ThreadPoolExecutor(1)
+            if jobs == 1
+            else ProcessPoolExecutor(jobs, initializer=_rendering_only)
+        )
+
+    def next(self) -> tuple[_Page, Future[_Ready]] | None:
+        """The next page, being rendered or ready; None when there are no more."""
+        with self.lock:
+            self._fill()
+            if not self.ahead:
+                return None
+            taken = self.ahead.popleft()
+            self._fill()
+            return taken
+
+    def _fill(self) -> None:
+        while len(self.ahead) < self.depth and self.waiting:
+            page = self.waiting.popleft()
+            ready = self.renderer.submit(
+                _prepare, page, self.c.scratch, self.c.password, self.steps
+            )
+            self.ahead.append((page, ready))
+
+    def close(self) -> int:
+        """Stop rendering; how many pages weren't handed out."""
+        with self.lock:
+            left = len(self.waiting) + len(self.ahead)
+            self.waiting.clear()
+        self.renderer.shutdown(wait=True, cancel_futures=True)
+        return left
+
+
+def _rendering_only() -> None:
+    """In a process rendering pages: Ctrl+C is for the run, which stops this one itself."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def _prepare(page: _Page, scratch: Path, password: str | None, steps: tuple[str, ...]) -> _Ready:
+    """The page rendered, turned and through `steps` (by name), as a PNG in `scratch`."""
+    target, plan = page.target, page.page
+    image = raster.render(target.path, plan, password=password)
+    size = image.size
+    upright = raster.turn(image, page.clockwise)
+    ready, back_steps = preprocess.apply(upright, preprocess.steps(steps))
+    # Named after the page and its file (pages of several files are ready at once), for
+    # whoever reads the log.
+    path = scratch / f"page-{plan.page}-{target.sha256[:12]}.png"
+    # With its resolution: some engines (Tesseract) size the text by it.
+    dpi = image.width / (plan.width / 72)
+    ready.save(path, compress_level=1, dpi=(dpi, dpi))
+    return _Ready(path, size, _PageBack(back_steps, page.clockwise, size))
+
+
+@dataclass(frozen=True)
+class _PageBack:
+    """The way back from a box on the image given to the worker to one on the page as
+    rendered (`size`): through the preprocessing steps, then turned back."""
+
+    steps: preprocess.Back
+    clockwise: int
+    size: tuple[int, int]
+
+    def __call__(self, box: preprocess.Box) -> preprocess.Box:
+        return raster.turn_back(self.steps(box), self.clockwise, self.size)
 
 
 def _tally(

@@ -131,6 +131,46 @@ def test_run_tells_the_engines_there_are(scans: Path) -> None:
     assert "yomitoku" in output
 
 
+def test_run_tells_how_many_workers_read_and_why(scans: Path) -> None:
+    code, output = invoke("run", str(scans), "-e", "fake")
+
+    assert code == 0, output
+    assert "; jobs auto (default); " in output.splitlines()[0]
+    assert "reading with 1 worker(s) (auto: fake reads fastest with one)" in output
+
+
+def test_run_reads_with_the_workers_asked_for(scans: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_OCR_JOBS", "3")
+
+    code, output = invoke("run", str(scans), "-e", "fake", "--jobs", "2")
+
+    assert code == 0, output
+    assert "; jobs 2 (--jobs); " in output.splitlines()[0]
+    assert "reading with 2 worker(s) (asked)" in output
+    assert "warning: fake reads no faster with more than one worker" in output
+    assert "2 page(s) read, 0 failed" in output
+
+
+def test_run_takes_the_workers_of_the_settings(
+    scans: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_OCR_JOBS", "2")
+
+    code, output = invoke("run", str(scans), "-e", "fake")
+
+    assert code == 0, output
+    assert "; jobs 2 (TEST_OCR_JOBS); " in output.splitlines()[0]
+    assert "reading with 2 worker(s) (asked)" in output
+
+
+@pytest.mark.parametrize("jobs", ["0", "many"])
+def test_run_refuses_workers_that_aren_t_a_number(scans: Path, jobs: str) -> None:
+    code, output = invoke("run", str(scans), "-e", "fake", "--jobs", jobs)
+
+    assert code == 2
+    assert "auto, or a number of workers" in output
+
+
 def test_run_exits_with_1_when_a_page_fails(scans: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FAKE_OCR", json.dumps({"fail": [1]}))
 

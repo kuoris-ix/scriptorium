@@ -55,6 +55,7 @@ uv run scriptorium score-engines data/ocr-trial             # どれだけ正し
 | `SCRIPTORIUM_PREPROCESS` | （なし） | 読む前の処理（カンマ区切り。`flatten,deskew` など） |
 | `SCRIPTORIUM_MIN_DPI`・`SCRIPTORIUM_MAX_DPI` | `300`・`600` | スキャンのページを描き直す解像度の範囲 |
 | `SCRIPTORIUM_WORKER_PAGES` | `1000` | worker をこのページ数ごとに起動し直す（`0` で起動し直さない） |
+| `SCRIPTORIUM_JOBS` | `auto` | エンジンごとに同時に読む worker の数（`--jobs`）。`auto` は、複数で速くなるエンジン（`tesseract`・`windows-ocr`）だけ、コア数とメモリに合わせて増やす |
 | `SCRIPTORIUM_PDF_PASSWORD` | （なし） | 保護された PDF のパスワード |
 
 ## プロジェクトで使う
