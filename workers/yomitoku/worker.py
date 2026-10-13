@@ -14,11 +14,16 @@ that runs a model on the GPU and doesn't give it back when the thread ends,
 so with a new pool for each page the worker grew by about 1.6MB a page; it
 is given one pool, kept for every page.
 
+On CUDA, PyTorch is given one thread on the CPU (unless OMP_NUM_THREADS is
+set): the models run on the GPU, and a thread for every core only keeps
+the CPU busy, without reading faster.
+
 Options (scriptorium's list of engines): lite (YomiToku's lighter models,
 as `yomitoku --lite`), and DocumentAnalyzer's reading_order,
 split_text_across_cells, ignore_meta and ignore_ruby.
 """
 
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -65,6 +70,10 @@ class YomiToku:
 
         yomitoku.document_analyzer.ThreadPoolExecutor = _KeptPool()  # see above
         self.device = ocr_worker.pick_device(device, ocr_worker.torch_devices())
+        if self.device == "cuda" and "OMP_NUM_THREADS" not in os.environ:
+            import torch
+
+            torch.set_num_threads(1)  # see above
         self.version = yomitoku.__version__
         lite = bool(options.get("lite", False))
         recognizer: dict[str, Any] = {"model_name": _MODELS[lite]}

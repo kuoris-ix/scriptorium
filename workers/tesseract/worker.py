@@ -18,6 +18,11 @@ confidence of 0.
 
 Options (scriptorium's list of engines): languages (default "jpn+eng"),
 psm (page segmentation mode, default 3: automatic).
+
+Tesseract is run with one OpenMP thread (OMP_THREAD_LIMIT=1, unless it's set
+otherwise): more don't read a page faster, and two Tesseracts at once (two
+runs) each with a thread for every core keep taking the cores from each
+other, reading tens of times slower.
 """
 
 import os
@@ -73,6 +78,7 @@ class Tesseract:
 
     def __init__(self, device: str, options: dict[str, Any]) -> None:
         self.device = ocr_worker.pick_device(device, ["cpu"])
+        os.environ.setdefault("OMP_THREAD_LIMIT", "1")  # for the tesseract commands; see above
         self.command = _command()
         self.languages = str(options.get("languages", "jpn+eng"))
         self.psm = int(options.get("psm", 3))

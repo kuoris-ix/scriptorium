@@ -25,7 +25,7 @@ uv run --project workers/<worker> python workers/<worker>/worker.py
 - The variables pointing at the using program's environment (`VIRTUAL_ENV`,
   `UV_PROJECT_ENVIRONMENT`, `PYTHONHOME`, `PYTHONPATH`) aren't passed on. `PYTHONIOENCODING=utf-8`
   is set (so that Japanese can be logged on Windows too).
-- The worker's stderr goes as it is to the log (`<ocr_dir>/logs/<date and time>-<engine>.log`).
+- The worker's stderr goes as it is to the log (`<ocr_dir>/logs/<date and time>-<process ID>-<engine>.log`).
 
 ### scriptorium → worker (stdin, one JSON object a line)
 
@@ -83,13 +83,18 @@ If `start`'s `protocol` differs, the worker ends with `fatal`.
             page-0001.json              a page read
             page-0002.failed.json       a page that couldn't be read, and why
         orient-<engine>.json            how each page is turned (by each engine that told)
-    logs/<date and time>-<engine>.log   the workers' logs
+        orient-<engine>.lock            held while that file is rewritten
+    logs/<date and time>-<process ID>-<engine>.log   the workers' logs
     tmp/                                images for the workers (a stopped run's may be left)
 ```
 
 - A file is known by its contents (SHA-256): renamed or moved, it isn't read again.
-- Every file is written whole (written to `.part`, then renamed). UTF-8, no `ensure_ascii`,
-  indent 1.
+- Every file is written whole (written to `<name>.<8 random hex digits>.part`, then renamed).
+  UTF-8, no `ensure_ascii`, indent 1.
+- Several runs may keep pages in the same store at once: each writes through a temporary file
+  of its own, `orient-<engine>.json` is rewritten holding `orient-<engine>.lock` (locked with
+  the system's file locks), and on Windows a file another process has open is tried again for
+  up to 10 seconds. An `orient-<engine>.json` that can't be read is told again, page by page.
 
 | File | Contents |
 |---|---|

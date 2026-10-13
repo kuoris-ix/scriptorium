@@ -1,12 +1,15 @@
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from scriptorium import engines, worker
+from scriptorium import engines, store, worker
 from scriptorium.engines import Engine
 from scriptorium.models import ORIENT_MIN_CONFIDENCE as OCR_ORIENT_MIN_CONFIDENCE
-from scriptorium.models import EngineInfo, OcrPage, OcrWord, StoredPage
-from scriptorium.store import RunKey, Store
+from scriptorium.models import EngineInfo, OcrPage, OcrWord, Orientation, StoredPage
+from scriptorium.store import RunKey, Store, UnreadableFile
 
 ENGINE = EngineInfo(name="fake", version="1.0", model="m", device="cpu")
 
@@ -62,6 +65,119 @@ def test_longest_path_is_that_of_a_failure_being_written(
     store.save_failure("0" * 64, key, 1, "RuntimeError: no", ENGINE)
 
     assert [len(str(part)) for part in written][-1] == store.longest_path(key)
+
+
+def test_each_write_goes_through_a_temporary_file_of_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kept, written = Store(tmp_path), []
+    monkeypatch.setattr(Path, "replace", lambda part, path: written.append(part))
+
+    kept.note_source("abc", "a.pdf", [])
+    kept.note_source("abc", "a.pdf", [])
+
+    first, second = written
+    assert first != second
+    assert first.name.startswith("source.json.") and first.name.endswith(".part")
+
+
+def busy(monkeypatch: pytest.MonkeyPatch, times: int) -> list[Path]:
+    """Have Path.replace refused `times` times, as while another process has the file; the
+    files it was tried with, each time."""
+    tries: list[Path] = []
+    replace = Path.replace
+
+    def refused(part: Path, path: Path) -> Path:
+        tries.append(path)
+        if len(tries) <= times:
+            raise PermissionError(13, "in use", str(path))
+        return replace(part, path)
+
+    monkeypatch.setattr(Path, "replace", refused)
+    return tries
+
+
+def test_a_file_another_process_has_is_written_once_it_s_free(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "_BUSY_CAN_PASS", True)  # as on Windows
+    tries = busy(monkeypatch, times=3)
+
+    Store(tmp_path).note_source("abc", "a.pdf", [])
+
+    assert len(tries) == 4
+    assert Store(tmp_path).name_of("abc") == "a.pdf"
+
+
+def test_a_file_held_too_long_isn_t_written_and_leaves_nothing_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "_BUSY_CAN_PASS", True)
+    monkeypatch.setattr(store, "_BUSY_SECONDS", 0.05)
+    busy(monkeypatch, times=1_000)
+
+    with pytest.raises(PermissionError):
+        Store(tmp_path).note_source("abc", "a.pdf", [])
+
+    assert list(tmp_path.rglob("*.part")) == []
+
+
+def test_a_permission_refused_is_tried_once_where_files_in_use_can_be_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "_BUSY_CAN_PASS", False)  # as on Linux and macOS
+    tries = busy(monkeypatch, times=1)
+
+    with pytest.raises(PermissionError):
+        Store(tmp_path).note_source("abc", "a.pdf", [])
+
+    assert len(tries) == 1
+
+
+def test_an_unreadable_orientations_file_is_told_and_written_anew(tmp_path: Path) -> None:
+    kept = Store(tmp_path)
+    kept.save_orientation("abc", "fake", 1, Orientation(90, 5.0))
+    path = tmp_path / "abc" / "orient-fake.json"
+    path.write_text('{"1": {"rotate": 90, "confidence": 5.0}, "2": {"rot', encoding="utf-8")
+
+    with pytest.raises(UnreadableFile, match=r"orient-fake\.json can't be read"):
+        kept.orientations("abc", "fake")
+
+    kept.save_orientation("abc", "fake", 2, Orientation(0, 7.0))
+
+    assert kept.orientations("abc", "fake") == {2: Orientation(0, 7.0)}
+
+
+# Each of two processes keeps how every other page is turned, at the same time.
+TELLING = """
+import sys
+from pathlib import Path
+from scriptorium.models import Orientation
+from scriptorium.store import Store
+
+kept, first = Store(Path(sys.argv[1])), int(sys.argv[2])
+for page in range(first, 61, 2):
+    kept.save_orientation("abc", "fake", page, Orientation(0, 1.0))
+"""
+
+
+def test_two_runs_telling_turns_at_once_keep_every_page(tmp_path: Path) -> None:
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+    runs = [
+        subprocess.Popen([sys.executable, "-c", TELLING, str(tmp_path), str(first)], env=env)
+        for first in (1, 2)
+    ]
+
+    assert [r.wait(timeout=120) for r in runs] == [0, 0]
+    assert sorted(Store(tmp_path).orientations("abc", "fake")) == list(range(1, 61))
+    assert list(tmp_path.rglob("*.part")) == []
+
+
+def test_a_log_s_name_tells_runs_started_in_the_same_second_apart(tmp_path: Path) -> None:
+    log = Store(tmp_path).new_log("fake")
+
+    assert log.name.endswith(f"-{os.getpid()}-fake.log")
 
 
 @pytest.mark.parametrize(

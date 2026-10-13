@@ -30,7 +30,7 @@ from scriptorium.models import (
     StoredPage,
 )
 from scriptorium.raster import PagePlan
-from scriptorium.store import RunKey, Store
+from scriptorium.store import RunKey, Store, UnreadableFile
 from scriptorium.worker import PageFailed, Result, Worker, WorkerFailed, load_result
 
 # How to start an engine's worker, given the workers' folder (see `worker.uv_command`).
@@ -172,7 +172,7 @@ def run(
             if outcome.error is not None:
                 outcome.left = len(work)
                 return outcome
-            turns = {t.sha256: store.orientations(t.sha256, orient.name) for t, _ in work}
+            turns = {t.sha256: _orientations(store, t.sha256, orient.name, say) for t, _ in work}
         while work:
             info = None
             try:
@@ -254,7 +254,7 @@ def _orient(
     Returns why it couldn't tell at all (it couldn't start or stopped), if so, and why it
     couldn't tell each page it couldn't (not kept, so told again next time).
     """
-    told = {t.sha256: c.store.orientations(t.sha256, orient.name) for t, _ in work}
+    told = {t.sha256: _orientations(c.store, t.sha256, orient.name, c.say) for t, _ in work}
     todo = [(t, p) for t, p in work if p.page not in told[t.sha256]]
     untold: dict[tuple[str, int], str] = {}
     if not todo:
@@ -288,6 +288,15 @@ def _orient(
     except WorkerFailed as e:
         return f"couldn't tell how pages are turned with {orient.name}: {e}", untold
     return None, untold
+
+
+def _orientations(store: Store, sha256: str, engine: str, say: Say) -> dict[int, Orientation]:
+    """How each page of the file is turned, as kept; none if that can't be read (told again)."""
+    try:
+        return store.orientations(sha256, engine)
+    except UnreadableFile as e:
+        say(f"{e}: how its pages are turned is told again")
+        return {}
 
 
 def _save_image(
