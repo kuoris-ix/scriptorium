@@ -34,6 +34,7 @@ from scriptorium import preprocess, raster
 from scriptorium.engines import Engine
 from scriptorium.files import find_files
 from scriptorium.models import (
+    DEVICES,
     ORIENT_MIN_CONFIDENCE,
     EngineInfo,
     OcrPage,
@@ -112,6 +113,8 @@ class Outcome:
     error: str | None = None  # why pages were left
     log: Path | None = None
     failures: list[str] = field(default_factory=list)
+    # Pages not read again, as read before on another device than the one asked for, by device.
+    read_elsewhere: dict[str, int] = field(default_factory=dict)
 
 
 def pending(
@@ -123,6 +126,30 @@ def pending(
         done = set() if reread else store.done(target.sha256, key)
         work += [(target, p) for p in target.to_read(force=force) if p.page not in done]
     return work
+
+
+def read_elsewhere(
+    targets: Sequence[Target], store: Store, key: RunKey, device: str, *, force: bool
+) -> dict[str, int]:
+    """The pages kept with `key` that were read on another device than `device`, by device.
+
+    The device isn't in the RunKey, so these aren't read again on `device` without `reread`.
+    Only for a device asked for: `auto` is the best there is, known once the worker has
+    started. Apple Vision picks its own and keeps `apple`, which isn't one to ask for.
+    """
+    if device == "auto":
+        return {}
+    found: dict[str, int] = {}
+    for target in targets:
+        done = store.done(target.sha256, key)
+        for page in target.to_read(force=force):
+            if page.page not in done:
+                continue
+            stored = store.load(target.sha256, key, page.page)
+            used = stored.engine.device if stored is not None else None
+            if used is not None and used in DEVICES and used != device:
+                found[used] = found.get(used, 0) + 1
+    return found
 
 
 def run(
@@ -164,6 +191,8 @@ def run(
     )
     work = pending(targets, store, key, force=force, reread=reread)
     outcome = Outcome()
+    if not reread:
+        outcome.read_elsewhere = read_elsewhere(targets, store, key, device, force=force)
     # Where each file kept or to be kept is, read before or not, for `ocr remove-missing`.
     reading = {t.sha256 for t, _ in work}
     for target in targets:
