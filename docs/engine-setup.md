@@ -108,7 +108,8 @@ uv run scriptorium score-engines data/ocr-trial -e <engine>   # score against th
   file is (the details of any error are there).
 - To see the text read and where: `uv run scriptorium dump-text data/ocr-trial -e <engine> -o data/ocr-trial/<engine>.csv`
 - **To compare devices**, add `--reread` to `--device cpu` (or `cuda`, `mps`). The device isn't
-  in the store's key, so without it nothing is read again.
+  in the store's key, so without it nothing is read again (and `run` tells how many pages were
+  read on another device, and that `--reread` reads them again).
 - **Turned pages**: the generated documents include pages turned 90 and 180 degrees
   (`turned90`, `turned180`). Once Tesseract is installed, also read with `--orient tesseract`
   (each page's turn is told, and the page put upright before it's read), and score with

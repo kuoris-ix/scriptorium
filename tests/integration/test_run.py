@@ -198,6 +198,29 @@ def test_a_worker_that_can_t_start_leaves_every_page(
     assert all(store.done(t.sha256, key()) == set() for t in found)
 
 
+def test_pages_read_on_another_device_are_kept_and_counted(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch, devices=["mps", "cpu"])
+    found = targets(folder=scans)
+    assert run(found, store, device="auto").read == 2  # on mps
+
+    on_cpu = run(found, store, device="cpu")
+
+    assert (on_cpu.read, on_cpu.log, on_cpu.read_elsewhere) == (0, None, {"mps": 2})
+    assert run(found, store, device="mps").read_elsewhere == {}
+    # auto is the best there is, known only once the worker has started.
+    assert run(found, store, device="auto").read_elsewhere == {}
+
+    reread = run(found, store, device="cpu", reread=True)
+
+    assert (reread.read, reread.read_elsewhere) == (2, {})
+    page = store.load(found[0].sha256, key(), 1)
+    assert page is not None
+    assert page.engine.device == "cpu"
+    assert run(found, store, device="cpu").read_elsewhere == {}
+
+
 def test_what_the_engine_prints_goes_to_the_log(
     scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:

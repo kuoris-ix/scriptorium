@@ -95,7 +95,8 @@ uv run scriptorium score-engines data/ocr-trial -e <engine>   # 正解と比べ�
   時間を表示する。最後にログファイルの場所を表示する（エラーの詳しい中身はそこにある）
 - 読んだ文字と位置を見るときは `uv run scriptorium dump-text data/ocr-trial -e <engine> -o data/ocr-trial/<engine>.csv`
 - **装置を変えて比べる**ときは、`--device cpu`（または `cuda`・`mps`）に `--reread` を付ける。保存のキーに装置は
-  入らないので、付けないと読み直さない
+  入らないので、付けないと読み直さない（そのときは、別の装置で読んだページの数と、`--reread` で読み直せることを
+  表示する）
 - **ページの向き**: 生成した書類には 90 度・180 度回したもの（`turned90`・`turned180`）がある。Tesseract を入れたら、
   `--orient tesseract` を付けて読んだ場合（向きを判定し、正しい向きにしてから読む）も試し、`scriptorium score-engines` にも
   `--orient tesseract` を付けて比べる（付けずに読んだものとは別に保存される）

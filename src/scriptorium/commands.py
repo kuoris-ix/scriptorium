@@ -363,6 +363,8 @@ def run(
 
     読んだページは読み直さないので、止まった（失敗した）ときは、もう一度
     実行すれば続きから読む。時間がかかるので、裏で動かしておいてよい。
+    別の装置で読んだページも読み直さない（装置を auto 以外にしたときは、
+    そうしたページの数を示す）。その装置で読み直すには --reread を付ける。
     読んだファイルの場所（絶対パス）も記録する（{command} remove-missing が使う）。
     読めなかったページがあれば終了コード 1 で終わる。保存先のパスが Windows
     で長すぎる（長いパスを有効にしていなければ 259 文字まで）ときは、読む
@@ -419,12 +421,17 @@ def run(
         )
         if outcome.log is None:
             typer.echo("nothing left to read")
-            continue
-        summary = f"{outcome.read} page(s) read, {outcome.failed} failed"
-        if outcome.left:
-            summary += f", {outcome.left} left ({outcome.error})"
-        typer.echo(f"{summary}; log: {outcome.log}")
-        problems += outcome.failed + outcome.left
+        else:
+            summary = f"{outcome.read} page(s) read, {outcome.failed} failed"
+            if outcome.left:
+                summary += f", {outcome.left} left ({outcome.error})"
+            typer.echo(f"{summary}; log: {outcome.log}")
+            problems += outcome.failed + outcome.left
+        for used, count in sorted(outcome.read_elsewhere.items()):
+            typer.echo(
+                f"{count} page(s) read on {used} before are kept, not read on {device_name}: "
+                "--reread reads them again"
+            )
     if problems:
         raise typer.Exit(1)
 

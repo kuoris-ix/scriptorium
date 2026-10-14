@@ -71,6 +71,27 @@ def test_run_reads_the_scanned_pages_and_keeps_them(isolated_settings: Path, sca
     assert (code, output.splitlines()[-1]) == (0, "nothing left to read")
 
 
+def test_run_tells_of_pages_read_on_another_device(
+    scans: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FAKE_OCR", json.dumps({"devices": ["mps", "cpu"]}))
+    assert invoke("run", str(scans), "-e", "fake")[0] == 0  # on mps
+
+    code, output = invoke("run", str(scans), "-e", "fake", "--device", "cpu")
+
+    assert code == 0, output
+    assert output.splitlines()[-2:] == [
+        "nothing left to read",
+        "2 page(s) read on mps before are kept, not read on cpu: --reread reads them again",
+    ]
+
+    code, output = invoke("run", str(scans), "-e", "fake", "--device", "cpu", "--reread")
+
+    assert code == 0, output
+    assert "2 page(s) read, 0 failed" in output
+    assert "read on mps before" not in output
+
+
 def test_run_takes_the_engines_of_the_settings(
     scans: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
