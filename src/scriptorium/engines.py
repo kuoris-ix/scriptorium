@@ -71,6 +71,8 @@ ENGINES: tuple[Engine, ...] = (
         "apple_vision",
         "The Vision framework built into macOS",
         platforms=("darwin",),
+        parallel=True,
+        memory=1.0,
     ),
     Engine(
         "windows-ocr",

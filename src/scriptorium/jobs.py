@@ -1,12 +1,12 @@
 """How many workers an engine reads with at once: as asked, or as the machine allows ("auto").
 
-Only some engines read faster with several workers (`Engine.parallel`: Tesseract and Windows'
-OCR, each worker using about a core); the others use every core with one (models run with ONNX
-Runtime or PyTorch on the CPU), or the GPU, and read no faster, or slower, with more. With
-"auto", a parallel engine gets a worker for each physical core but some kept free for the rest
-of the machine, as many as the memory free allows, and none more on a machine with few cores
-or little memory. The workers run at a low priority (see `worker`), so what else runs comes
-first.
+Only some engines read faster with several workers (`Engine.parallel`: Tesseract, Windows' OCR
+and Apple Vision, each worker using about a core); the others use every core with one (models
+run with ONNX Runtime or PyTorch on the CPU), or the GPU, and read no faster, or slower, with
+more. With "auto", a parallel engine gets a worker for each physical core but some kept free
+for the rest of the machine, as many as the memory free allows, and none more on a machine with
+few cores or little memory. The workers run at a low priority (see `worker`), so what else runs
+comes first.
 """
 
 import os
