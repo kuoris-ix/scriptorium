@@ -72,7 +72,9 @@ def test_workers_asked_for_that_may_not_fit_in_memory_are_told() -> None:
 
 
 def test_only_the_engines_that_read_faster_with_several_workers_have_more() -> None:
-    assert [e.name for e in engines.ENGINES if e.parallel] == ["windows-ocr", "tesseract"]
+    parallel = [e.name for e in engines.ENGINES if e.parallel]
+
+    assert parallel == ["apple-vision", "windows-ocr", "tesseract"]
 
 
 def test_the_machine_here_is_told() -> None:

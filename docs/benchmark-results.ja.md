@@ -1265,7 +1265,7 @@ PaddleOCR（GPU）と Tesseract（12 worker）を別々の実行として同時�
 - **GPU のエンジンの CPU のスレッドは 1 つでよい**: CPU の使用率が 5〜6 割から 1 割になり、遅くならない
 - **増やして速くなるエンジンは、メモリをあまり使わない**（worker 1 つ 1GB 以下）。メモリを多く使うエンジン（CPU の
   yomitoku・PaddleOCR）は、増やしても速くならないか、CPU を使い切る
-- この PC（16 コア、GPU 1 枚）・架空の書類での値。コアの少ない PC は「Linux: 速さ」（4 コア）を見る。Mac は測っていない
+- この PC（16 コア、GPU 1 枚）・架空の書類での値。コアの少ない PC は「Linux: 速さ」（4 コア）を、Mac は「Mac: 速さ」を見る
 
 ### 再現のしかた
 
@@ -1281,3 +1281,65 @@ A4 の PDF は「Linux: 速さ」と同じに作った。`data/speed/e2e` の 4 
 して、1 ページ目の隅に小さな点をファイルごとに違う場所に描いたもの（中身の違うファイルにするため）。描く・保存・読むの
 内訳、worker を N 個にした速さ、スレッドを絞った worker は、`runner` の関数と `Worker` をそのまま使う小さなスクリプトで
 測った。
+
+
+## Mac: 速さ（worker を複数）
+
+Mac で、「Linux: 速さ」「Windows: 速さ」の測っていなかったエンジンを、worker の数を増やして測った。Mac で
+`--jobs auto` が増やすエンジンは、これで Tesseract と Apple Vision になった。
+
+### 条件
+
+| 項目 | 内容 |
+|---|---|
+| 日付 | 2026-10-14 |
+| 環境 | macOS 27.0.1（Apple シリコン） |
+| エンジン | Apple Vision（ocrmac 1.0.1、`accurate`）、yomitoku 0.15.0（yomitoku・yomitoku-lite、MPS）、NDLOCR-Lite 1.0.0、PaddleOCR 3.7.0（PaddlePaddle 3.3.1、CPU） |
+| 書類 | 架空の書類（`make-samples --count 1 --seed 1`）の請求書・明細・レシート・通帳の 150・200・300・600dpi の PNG 16 枚を繰り返したもの（Apple Vision は 48〜96 ページ、yomitoku は 32、NDLOCR-Lite は 24、PaddleOCR は 8） |
+| 測り方 | 「Linux: 速さ」と同じ。描いておいた PNG のキューを N 個の worker で分け合う（起動の時間は除く）。メモリは worker のプロセスの最大の RSS の合計。`ocr run` での時間は、`make-samples` の 64 ページを新しい保存先に読んだ全体（worker の起動を含む） |
+
+### worker を複数
+
+| worker の数 | Apple Vision | yomitoku-lite（MPS） | yomitoku（MPS） | NDLOCR-Lite | PaddleOCR（CPU） |
+|---|---|---|---|---|---|
+| 1 | 1.60 ページ/秒 | 1.47 | 1.06 | **1.91** | 0.067（1 ページ 14.9 秒） |
+| 2 | 2.75（1.7 倍） | **1.72（1.17 倍）** | **1.42（1.34 倍）** | 2.34（1.22 倍） | **0.110（1.64 倍）** |
+| 4 | 4.78（3.0 倍） | 測らず | 測らず | 2.14（1.12 倍） | 測らず |
+| 8 | 7.26（4.5 倍） | 測らず | 測らず | 測らず | 測らず |
+| 12 | **9.46（5.9 倍）** | 測らず | 測らず | 測らず | 測らず |
+
+worker 全体のメモリ（最大）: Apple Vision は 1 つで 1.6GB、12 で 7.8GB（1 つあたり 0.65GB 前後）。yomitoku は 1 つ 3.0GB、
+2 つ 5.7〜5.8GB。NDLOCR-Lite は 1 つ 2.1GB、4 つ 6.6GB。PaddleOCR は 1 つ 19.5GB、2 つ 28.4GB。
+
+- **Apple Vision は、worker の数にほぼ比例して速くなる**（12 で 5.9 倍）。1 ページの時間は 0.63 秒 → 0.90 秒としか延びない。
+  CPU の使用率は 12 で最大 94%。メモリは 1 つ 1GB 以下なので、`Engine.parallel` を付けた（`Engine.memory` は 1GB）
+- **YomiToku（MPS）は GPU が 1 つなので、1.2〜1.3 倍で止まる**。Windows の CUDA（1.15〜1.40 倍）と同じ
+- **NDLOCR-Lite は 2 つで 1.22 倍、4 つでは遅くなる**。Windows と同じ。1 つのままでよい
+- **PaddleOCR（Mac では CPU）は、1 つでコア 1 つ分ほどしか使わない**（CPU の使用率 14%）。2 つで 1.64 倍だが、メモリは
+  1 つで最大 19.5GB（600dpi の A4 を含む）、2 つで 28.4GB と多く、3 つ以上はメモリが足りなくなる Mac が多い（測っていない）。
+  `--jobs auto` は、空きメモリがエンジンの目安（`Engine.memory`）の分に足りなければ 1 つにする。Apple Vision のように
+  `parallel` にはしない
+
+### `ocr run`（Apple Vision、64 ページ）
+
+| `--jobs` | 全体の時間 |
+|---|---|
+| 1（変える前の `auto`） | 25.8 秒 |
+| 2 | 14.9 秒 |
+| 4 | 10.4 秒 |
+| 8 | **8.5 秒（3.0 倍）** |
+| 12 | 8.7 秒 |
+
+どれも 64 ページすべて読め（失敗 0）、8 と 12 で変わらないのは、worker の起動と描く時間が残るため。読んだ内容は
+1 つのときと同じ（文字と位置が 64 ページすべて同じ）。
+
+### 再現のしかた
+
+```bash
+uv run scriptorium make-samples data/ocr-trial --count 1 --seed 1
+for j in 1 2 4 8 12; do
+  SCRIPTORIUM_DIR=data/ocr-speed-$j uv run scriptorium run data/ocr-trial -e apple-vision --jobs $j
+done
+```
+
+worker の数ごとの速さとメモリは、`Worker` を N 個起動して、描いておいた PNG を分け合わせる小さなスクリプトで測った。
