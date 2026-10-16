@@ -18,7 +18,7 @@ from ocr_files import a4_scan, flatbed, form, scan, write_pdf
 from PIL import Image, ImageDraw, ImageFont
 from typer.testing import CliRunner
 
-from scriptorium import commands, engines, fictional, samples, worker
+from scriptorium import commands, engines, fictional, raster, samples, worker
 from scriptorium.engines import Engine
 from scriptorium.models import EngineInfo, OcrPage, OcrWord, StoredPage
 from scriptorium.store import RunKey, Store
@@ -886,6 +886,38 @@ def test_split_scans_exits_with_1_when_a_page_has_no_sheet(isolated_settings: Pa
 
     assert code == 1
     assert "blank.pdf p1: 0 document(s)" in output
+
+
+def test_split_scans_tells_a_page_it_can_t_render_and_goes_on(
+    isolated_settings: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = isolated_settings / "data" / "scans"
+    write_pdf(folder / "slips.pdf", [a4_scan(100), a4_scan(100)])
+    monkeypatch.setattr(raster, "MAX_PIXELS", 10_000)
+
+    code, output = invoke("split-scans", str(folder), "-o", str(isolated_settings / "out"))
+
+    assert code == 1
+    assert "slips.pdf p1: couldn't render it: ValueError: " in output
+    assert "slips.pdf p2: couldn't render it: ValueError: " in output  # went on to the next
+    assert "Traceback" not in output
+    assert "0 image(s) written" in output
+
+
+def test_join_scans_tells_halves_it_can_t_render_and_goes_on(
+    isolated_settings: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = isolated_settings / "data" / "scans"
+    write_pdf(folder / "form.pdf", [*_a3_halves(), *_a3_halves()])
+    monkeypatch.setattr(raster, "MAX_PIXELS", 10_000)
+
+    code, output = invoke("join-scans", str(folder), "-o", str(isolated_settings / "out"))
+
+    assert code == 1
+    assert "form.pdf p1+p2: not joined: the page's image is " in output
+    assert "form.pdf p3+p4: not joined: the page's image is " in output
+    assert "Traceback" not in output
+    assert "0 image(s) written" in output
 
 
 def _a3_halves() -> list[Image.Image]:

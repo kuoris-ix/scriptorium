@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pypdfium2 as pdfium
 import pytest
 from ocr_files import form, write_pdf
 from PIL import Image, ImageChops, ImageDraw
@@ -195,6 +196,34 @@ def test_a_pdf_page_not_filled_by_its_image_is_not_a_half(tmp_path: Path) -> Non
     (page,) = raster.plan(path)
 
     with pytest.raises(join.Unjoinable, match="doesn't fill the page"):
+        join.half(path, page)
+
+
+def test_a_pdf_page_s_image_of_more_pixels_than_the_limit_is_not_a_half(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    left, _ = halves(a3_form())
+    path = write_pdf(tmp_path / "large.pdf", [left.image])
+    (page,) = raster.plan(path)
+    monkeypatch.setattr(raster, "MAX_PIXELS", 10_000)
+
+    with pytest.raises(ValueError, match="more than 10,000"):
+        join.half(path, page)
+
+
+def test_a_pdf_pdfium_can_t_open_is_not_a_half(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    left, _ = halves(a3_form())
+    path = write_pdf(tmp_path / "broken.pdf", [left.image])
+    (page,) = raster.plan(path)
+
+    def opening(*args: object, **kwargs: object) -> object:
+        raise pdfium.PdfiumError("Failed to load document")
+
+    monkeypatch.setattr(pdfium, "PdfDocument", opening)
+
+    with pytest.raises(ValueError, match="pdfium can't open it"):
         join.half(path, page)
 
 

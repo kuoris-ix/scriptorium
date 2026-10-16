@@ -93,7 +93,7 @@ def half(path: Path, page: raster.PagePlan, *, password: str | None = None) -> H
     """
     if not raster.is_pdf(path):
         return Half(raster.render(path, page), page.dpi)
-    pdf = pdfium.PdfDocument(path, password=password)
+    pdf = raster.open_pdf(path, password=password)
     try:
         return _embedded(pdf[page.page - 1])
     finally:
@@ -114,7 +114,15 @@ def _embedded(page: pdfium.PdfPage) -> Half:
     width, height = page.get_size()
     if max(abs(left), abs(bottom), abs(right - width), abs(top - height)) > _FILL_TOLERANCE:
         raise Unjoinable("the page's image doesn't fill the page")
-    bitmap = image.get_bitmap(render=False).to_pil()
+    width_px, height_px = image.get_px_size()
+    if width_px * height_px > raster.MAX_PIXELS:
+        raise ValueError(
+            f"the page's image is {width_px}x{height_px} pixels, more than {raster.MAX_PIXELS:,}"
+        )
+    try:
+        bitmap = image.get_bitmap(render=False).to_pil()
+    except pdfium.PdfiumError as e:
+        raise ValueError(f"pdfium can't take the page's image out: {e}") from e
     # Copied either way: the bitmap goes with the document.
     pixels = bitmap.copy() if bitmap.mode in ("RGB", "L") else bitmap.convert("RGB")
     return Half(pixels, round(pixels.width / (width / 72), 1))

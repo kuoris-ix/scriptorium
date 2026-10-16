@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pypdfium2 as pdfium
 import pytest
 from ocr_files import A4, a4_scan, dark_box, scan, unmapped_pdf, write_pdf
 from PIL import Image
@@ -103,6 +104,54 @@ def test_render_draws_the_page_at_its_resolution(tmp_path: Path) -> None:
     # Back in points: 72 from the left, 144 from the top.
     scale = page.width / image.width
     assert [v * scale for v in box] == pytest.approx([72, 144, 144, 180], abs=1.5)
+
+
+def test_a_page_of_more_pixels_than_the_limit_is_not_rendered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_pdf(tmp_path / "scan.pdf", [a4_scan(100)])
+    (page,) = raster.plan(path, min_dpi=100, max_dpi=100)
+    monkeypatch.setattr(raster, "MAX_PIXELS", 10_000)
+
+    with pytest.raises(ValueError, match="pixels"):
+        raster.render(path, page)
+
+
+def test_an_image_file_of_more_pixels_than_the_limit_is_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "big.png"
+    scan((200, 200)).save(path, dpi=(300, 300))
+    (page,) = raster.plan(path)
+    monkeypatch.setattr(raster, "MAX_PIXELS", 10_000)
+
+    with pytest.raises(ValueError, match="pixels"):
+        raster.render(path, page)
+
+
+@pytest.mark.parametrize("breaks_at", ["open", "render"])
+def test_a_page_pdfium_can_t_render_raises_value_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, breaks_at: str
+) -> None:
+    path = write_pdf(tmp_path / "scan.pdf", [a4_scan(100)])
+    (page,) = raster.plan(path, min_dpi=100, max_dpi=100)
+    failure = pdfium.PdfiumError("Failed to load document")
+
+    if breaks_at == "open":
+
+        def opening(*args: object, **kwargs: object) -> object:
+            raise failure
+
+        monkeypatch.setattr(pdfium, "PdfDocument", opening)
+    else:
+
+        def rendering(self: object, *args: object, **kwargs: object) -> object:
+            raise failure
+
+        monkeypatch.setattr(pdfium.PdfPage, "render", rendering)
+
+    with pytest.raises(ValueError, match="pdfium can't"):
+        raster.render(path, page)
 
 
 def test_a_rotated_page_is_planned_and_rendered_as_it_is_shown(tmp_path: Path) -> None:
