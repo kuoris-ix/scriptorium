@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -311,6 +312,61 @@ def test_uv_command_runs_the_worker_in_its_own_project(
         "python",
         str(folder / "worker.py"),
     ]
+
+
+def test_a_worker_isn_t_given_the_variables_not_passed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FICTIONAL_PDF_PASSWORD", "not-a-real-one")
+    monkeypatch.setenv("FICTIONAL_OTHER", "kept")
+    script = (
+        "import os, sys\n"
+        "print([os.environ.get(n) for n in ('FICTIONAL_PDF_PASSWORD', 'FICTIONAL_OTHER')],"
+        " file=sys.stderr)\n"
+    )
+    log_path = tmp_path / "worker.log"
+
+    with log_path.open("w", encoding="utf-8") as log:
+        started = worker.Worker(
+            [sys.executable, "-c", script], log, not_passed=("FICTIONAL_PDF_PASSWORD",)
+        )
+        started.stop()
+
+    assert log_path.read_text(encoding="utf-8").strip() == "[None, 'kept']"
+
+
+def test_find_command_doesn_t_look_in_the_working_folder_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    here, on_path = tmp_path / "here", tmp_path / "on_path"
+    here.mkdir()
+    on_path.mkdir()
+    (here / "uv.EXE").write_text("")
+    monkeypatch.chdir(here)
+    monkeypatch.setenv("PATHEXT", ".EXE")
+    monkeypatch.setenv("PATH", os.pathsep.join([".", "", str(on_path)]))
+
+    assert worker.find_command("uv", platform="win32") is None
+
+    (on_path / "uv.EXE").write_text("")
+
+    assert worker.find_command("uv", platform="win32") == str(on_path / "uv.EXE")
+
+
+def test_find_command_is_which_where_it_looks_in_the_path_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    program = tmp_path / ("zzprogram.exe" if sys.platform == "win32" else "zzprogram")
+    program.write_text("")
+    program.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setenv("PATHEXT", ".EXE")
+
+    found = worker.find_command("zzprogram", platform="linux")
+
+    assert found is not None
+    assert found == shutil.which("zzprogram")
+    assert worker.find_command("zznothing", platform="linux") is None
 
 
 def test_load_result_rejects_what_isn_t_a_result(tmp_path: Path) -> None:

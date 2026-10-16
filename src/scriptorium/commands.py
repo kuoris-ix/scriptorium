@@ -409,6 +409,7 @@ def run(
             min_dpi=config.min_dpi,
             max_dpi=config.max_dpi,
             password=password,
+            not_passed=(_naming(ctx).password_variable,),
             force=force,
             reread=reread,
             orient=orient,
@@ -542,6 +543,7 @@ def check_engines(ctx: typer.Context, device: Device | None = DEVICE) -> None:
                             image=image,
                             truth=truth,
                             log=stream,
+                            not_passed=(_naming(ctx).password_variable,),
                         )
                 if checked.error is not None:
                     failed += 1

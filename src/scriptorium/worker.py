@@ -13,7 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -38,9 +38,26 @@ class PageFailed(Exception):
     """The worker couldn't read a page (and goes on with the next)."""
 
 
+def find_command(name: str, platform: str = sys.platform) -> str | None:
+    """Where the program `name` is on the PATH, if it is. On Windows, never in the working
+    folder, which `shutil.which` looks in first: a uv.exe left in a folder of scans, say,
+    would be run."""
+    if platform != "win32":
+        return shutil.which(name)
+    suffixes = [s for s in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if s]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        folder = Path(entry.strip().strip('"'))
+        if not folder.is_absolute():  # "" and "." too: the working folder
+            continue
+        for suffix in suffixes:
+            if (found := folder / f"{name}{suffix}").is_file():
+                return str(found)
+    return None
+
+
 def uv_command(engine: Engine, workers_dir: Path) -> list[str]:
     """How to start the worker of `engine`: with uv, in its own environment."""
-    uv = os.environ.get("UV") or shutil.which("uv")
+    uv = os.environ.get("UV") or find_command("uv")
     if uv is None:
         raise WorkerFailed("uv isn't found (it runs the OCR workers)")
     folder = engine.folder(workers_dir).resolve()
@@ -68,9 +85,21 @@ class Result:
 class Worker:
     """A running worker; use it as a context manager to have it stopped."""
 
-    def __init__(self, command: list[str], log: IO[str]) -> None:
+    def __init__(
+        self, command: list[str], log: IO[str], *, not_passed: Collection[str] = ()
+    ) -> None:
+        """Start the worker with `command`, its stderr going to `log`. It's given the
+        environment but `_NOT_PASSED` and `not_passed` (e.g. the variable a PDF's password
+        is in: a worker reads images only)."""
         self.log = log
-        env = {k: v for k, v in os.environ.items() if k not in _NOT_PASSED}
+        left_out = {*_NOT_PASSED, *not_passed}
+        if sys.platform == "win32":  # where variables' names ignore case
+            left_out = {name.upper() for name in left_out}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if (k.upper() if sys.platform == "win32" else k) not in left_out
+        }
         env["PYTHONIOENCODING"] = "utf-8"  # what it prints in Japanese, on Windows too
         try:
             self.process = subprocess.Popen(

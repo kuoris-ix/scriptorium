@@ -21,10 +21,12 @@ scriptorium (a worker). scriptorium's side is `worker.py`; what every worker sha
 uv run --project workers/<worker> python workers/<worker>/worker.py
 ```
 
-- `uv` is the environment variable `UV`, else found on the PATH.
+- `uv` is the environment variable `UV`, else found on the PATH (on Windows, not in the working
+  folder).
 - The variables pointing at the using program's environment (`VIRTUAL_ENV`,
-  `UV_PROJECT_ENVIRONMENT`, `PYTHONHOME`, `PYTHONPATH`) aren't passed on. `PYTHONIOENCODING=utf-8`
-  is set (so that Japanese can be logged on Windows too).
+  `UV_PROJECT_ENVIRONMENT`, `PYTHONHOME`, `PYTHONPATH`) aren't passed on, nor is the variable a
+  PDF's password is in (`ProgramNames.password_variable`): a worker reads images only.
+  `PYTHONIOENCODING=utf-8` is set (so that Japanese can be logged on Windows too).
 - The worker's stderr goes as it is to the log (`<ocr_dir>/logs/<date and time>-<process ID>-<engine>.log`).
 
 ### scriptorium → worker (stdin, one JSON object a line)

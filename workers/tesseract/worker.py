@@ -6,10 +6,11 @@ Tesseract itself is installed apart, with its Japanese data (jpn):
 - Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-jpn`
 - Windows: UB Mannheim's installer, choosing Japanese among the languages
 
-The command is found on the PATH, at Windows' usual place, or at
-TESSERACT_CMD. Each word Tesseract reads is a box (Japanese words are
-often a character or two); its block, paragraph and line are kept in the
-extra output. Tesseract reads the image's resolution from the PNG.
+The command is found on the PATH (on Windows, not in the working
+folder), at Windows' usual place, or at TESSERACT_CMD. Each word
+Tesseract reads is a box (Japanese words are often a character or two);
+its block, paragraph and line are kept in the extra output. Tesseract
+reads the image's resolution from the PNG.
 
 It also tells how a page is turned (`ocr run --orient tesseract`),
 with Tesseract's orientation and script detection (OSD, its "osd" data);
@@ -26,7 +27,6 @@ other, reading tens of times slower.
 """
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -40,7 +40,7 @@ _WINDOWS_PLACE = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
 
 def _command() -> str:
-    found = os.environ.get("TESSERACT_CMD") or shutil.which("tesseract")
+    found = os.environ.get("TESSERACT_CMD") or ocr_worker.find_command("tesseract")
     if found:
         return found
     if sys.platform == "win32" and _WINDOWS_PLACE.exists():
