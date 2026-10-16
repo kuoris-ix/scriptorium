@@ -135,6 +135,12 @@ class Store:
         path = absolute_path(self._failure_path("0" * 64, key, 1))
         return len(str(_part_of(path)))
 
+    def _make_root(self) -> None:
+        """Make the store's folder if it isn't there, for its user only (Linux, macOS; the
+        mode is left out on Windows): what's kept holds the documents' text. One there
+        already is left as it is."""
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+
     def note_source(
         self, sha256: str, name: str, pages: Sequence[PagePlan], path: Path | None = None
     ) -> None:
@@ -143,6 +149,7 @@ class Store:
         `path` is added to the paths the file was read at before (as an absolute path), so
         that `ocr remove-missing` can tell the file is gone without being told where it was.
         """
+        self._make_root()
         paths = self.locations(sha256)
         if path is not None and (where := absolute_path(path)) not in paths:
             paths.append(where)
@@ -202,6 +209,7 @@ class Store:
         return found
 
     def save(self, sha256: str, key: RunKey, stored: StoredPage) -> None:
+        self._make_root()
         folder = self.folder(sha256, key)
         if not (folder / "run.json").exists():
             _write_json(folder / "run.json", key.as_dict())
@@ -212,6 +220,7 @@ class Store:
     def save_failure(
         self, sha256: str, key: RunKey, page: int, error: str, engine: EngineInfo | None
     ) -> None:
+        self._make_root()
         folder = self.folder(sha256, key)
         if not (folder / "run.json").exists():
             _write_json(folder / "run.json", key.as_dict())
@@ -240,6 +249,7 @@ class Store:
     def save_orientation(
         self, sha256: str, engine: str, page: int, orientation: Orientation
     ) -> None:
+        self._make_root()
         # Under the lock, so that what another run keeps meanwhile isn't written over.
         with _locked(self.root / sha256 / f"orient-{engine}.lock"):
             try:
@@ -289,6 +299,7 @@ class Store:
 
     def scratch(self) -> Path:
         """A folder for the images handed to workers (of real documents, so not a system one)."""
+        self._make_root()
         folder = self.root / "tmp"
         folder.mkdir(parents=True, exist_ok=True)
         return folder
@@ -296,6 +307,7 @@ class Store:
     def new_log(self, engine: str) -> Path:
         """A log file for one run of `engine`'s worker (with the process ID, as two runs may
         start in the same second)."""
+        self._make_root()
         folder = self.root / "logs"
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f"{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}-{engine}.log"

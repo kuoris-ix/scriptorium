@@ -87,6 +87,8 @@ uv run --project workers/<worker> python workers/<worker>/worker.py
     tmp/                                worker に渡す画像の一時フォルダ（止めた実行のものが残りうる）
 ```
 
+- `<ocr_dir>` は、store が作るときは作ったユーザーだけが読み書きできる（Linux・macOS ではモード 700）。
+  すでにあるものはそのまま
 - ファイルは中身（SHA-256）で知る。名前を変えたり移したりしても読み直さない
 - どのファイルも丸ごと書く（`<名前>.<乱数の 16 進 8 桁>.part` に書いてから名前を変える）。UTF-8、`ensure_ascii` なし、
   インデント 1
