@@ -5,8 +5,11 @@ tell where a box lands after a page is rendered or turned; any text in them
 is made up.
 """
 
-from collections.abc import Sequence
+import functools
+import os
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pypdfium2 as pdfium
 from PIL import Image, ImageDraw
@@ -139,3 +142,19 @@ def unmapped_pdf(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(bytes(out))
     return path
+
+
+def prepare_that_ends_on(page: int, *, once: bool) -> Callable[..., Any]:
+    """Stands for `runner._prepare` where the process ends on page `page` (once, or every
+    time it's asked), as one out of memory would. Importable by name, as a process needs."""
+    return functools.partial(_prepare_ending, page, once)
+
+
+def _prepare_ending(ends_on: int, once: bool, page: Any, scratch: Path, *args: Any) -> Any:
+    from scriptorium import runner
+
+    marker = scratch / "ended"
+    if page.page.page == ends_on and not (once and marker.exists()):
+        marker.touch()
+        os._exit(7)
+    return runner._prepare(page, scratch, *args)  # as it is in the new process

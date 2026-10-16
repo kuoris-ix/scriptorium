@@ -25,7 +25,13 @@ import tempfile
 import threading
 from collections import deque
 from collections.abc import Callable, Sequence
-from concurrent.futures import Executor, Future, ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import (
+    BrokenExecutor,
+    Executor,
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+)
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import IO
@@ -426,7 +432,13 @@ def _work_through[T](
                                 return None
                             given += 1
                             page, ready = taken
-                            answer = _ask(worker, info, page, ready, ask)
+                            answer = _ask(
+                                worker,
+                                info,
+                                page,
+                                functools.partial(supply.result, page, ready),
+                                ask,
+                            )
                             taken, stops = None, 0
                             messages.put(
                                 functools.partial(done, page.target, page.page, answer, info)
@@ -500,7 +512,7 @@ def _ask[T](
     worker: Worker,
     info: EngineInfo,
     page: _Page,
-    ready: Future[_Ready],
+    ready: Callable[[], _Ready],
     ask: Callable[[Worker, EngineInfo, _Page, _Ready], T],
 ) -> T | _Failure:
     """`ask`'s answer about `page`, once it's ready, or why there's none.
@@ -510,9 +522,11 @@ def _ask[T](
     prepared = None
     try:
         try:
-            prepared = ready.result()
+            prepared = ready()
         except (OSError, ValueError) as e:  # pdfplumber and PIL, as `plan` found the pages
             return _Failure(f"{type(e).__name__}: {e}", rendering=True)
+        except BrokenExecutor:  # the process rendering it ended (e.g. out of memory)
+            return _Failure("the process rendering the page stopped", rendering=True)
         return ask(worker, info, page, prepared)
     except PageFailed as e:
         return _Failure(str(e))
@@ -535,12 +549,33 @@ class _Supply:
         self.ahead: deque[tuple[_Page, Future[_Ready]]] = deque()
         self.lock = threading.Lock()
         self.depth = jobs + 1
-        self.c, self.steps = c, steps
-        self.renderer: Executor = (
-            ThreadPoolExecutor(1)
-            if jobs == 1
-            else ProcessPoolExecutor(jobs, initializer=_rendering_only)
-        )
+        self.c, self.steps, self.jobs = c, steps, jobs
+        self.renderer: Executor = self._new_renderer()
+
+    def _new_renderer(self) -> Executor:
+        if self.jobs == 1:
+            return ThreadPoolExecutor(1)
+        return ProcessPoolExecutor(self.jobs, initializer=_rendering_only)
+
+    def _submit(self, page: _Page) -> Future[_Ready]:
+        try:
+            return self.renderer.submit(_prepare, page, self.c.scratch, self.c.password, self.steps)
+        except BrokenExecutor:  # a process ended: the pages in it fail, new ones go to new ones
+            self.renderer = self._new_renderer()
+            return self.renderer.submit(_prepare, page, self.c.scratch, self.c.password, self.steps)
+
+    def result(self, page: _Page, ready: Future[_Ready]) -> _Ready:
+        """The page rendered. If the process rendering it ended (it, or another page in it,
+        used up the memory, say), it's rendered once more in a process of its own, so that
+        only a page that ends it fails."""
+        try:
+            return ready.result()
+        except BrokenExecutor:
+            pass
+        with ProcessPoolExecutor(1, initializer=_rendering_only) as alone:
+            return alone.submit(
+                _prepare, page, self.c.scratch, self.c.password, self.steps
+            ).result()
 
     def next(self) -> tuple[_Page, Future[_Ready]] | None:
         """The next page, being rendered or ready; None when there are no more."""
@@ -555,10 +590,7 @@ class _Supply:
     def _fill(self) -> None:
         while len(self.ahead) < self.depth and self.waiting:
             page = self.waiting.popleft()
-            ready = self.renderer.submit(
-                _prepare, page, self.c.scratch, self.c.password, self.steps
-            )
-            self.ahead.append((page, ready))
+            self.ahead.append((page, self._submit(page)))
 
     def close(self) -> int:
         """Stop rendering; how many pages weren't handed out."""
