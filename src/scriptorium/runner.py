@@ -18,7 +18,6 @@ reads is kept as soon as it's read, in the thread that runs them.
 """
 
 import functools
-import hashlib
 import queue
 import signal
 import tempfile
@@ -38,7 +37,7 @@ from typing import IO
 
 from scriptorium import preprocess, raster
 from scriptorium.engines import Engine
-from scriptorium.files import find_files
+from scriptorium.files import find_files, sha256_of
 from scriptorium.models import (
     DEVICES,
     ORIENT_MIN_CONFIDENCE,
@@ -100,7 +99,7 @@ def plan(
     for name, path in files:
         try:
             pages = raster.plan(path, password=password, min_dpi=min_dpi, max_dpi=max_dpi)
-            sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+            sha256 = sha256_of(path)
         except Exception as e:  # pdfplumber and PIL raise many kinds for a bad file
             failed[name] = f"{type(e).__name__}: {e}"
             continue

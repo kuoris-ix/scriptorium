@@ -1,7 +1,9 @@
 import os
 import shutil
+import stat
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -179,6 +181,43 @@ def test_a_log_s_name_tells_runs_started_in_the_same_second_apart(tmp_path: Path
     log = Store(tmp_path).new_log("fake")
 
     assert log.name.endswith(f"-{os.getpid()}-fake.log")
+
+
+_NOT_ON_WINDOWS = pytest.mark.skipif(sys.platform == "win32", reason="Windows has no modes")
+
+
+@_NOT_ON_WINDOWS
+@pytest.mark.parametrize(
+    "write",
+    [
+        lambda s: s.save("abc", RunKey("fake"), stored(1)),
+        lambda s: s.save_failure("abc", RunKey("fake"), 1, "RuntimeError: no", ENGINE),
+        lambda s: s.note_source("abc", "sample.pdf", []),
+        lambda s: s.save_orientation("abc", "fake", 1, Orientation(0, 0.9)),
+        lambda s: s.scratch(),
+        lambda s: s.new_log("fake"),
+    ],
+    ids=["save", "save_failure", "note_source", "save_orientation", "scratch", "new_log"],
+)
+def test_a_store_s_folder_made_by_any_write_is_its_user_s_only(
+    tmp_path: Path, write: Callable[[Store], object]
+) -> None:
+    root = tmp_path / "ocr"
+
+    write(Store(root))
+
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
+
+
+@_NOT_ON_WINDOWS
+def test_a_store_s_folder_there_already_is_left_as_it_is(tmp_path: Path) -> None:
+    root = tmp_path / "ocr"
+    root.mkdir()
+    root.chmod(0o755)
+
+    Store(root).save("abc", RunKey("fake"), stored(1))
+
+    assert stat.S_IMODE(root.stat().st_mode) == 0o755
 
 
 @pytest.mark.parametrize(

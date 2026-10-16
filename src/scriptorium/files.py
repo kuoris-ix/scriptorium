@@ -1,5 +1,6 @@
 """Finding the files to read in a folder, and writing their paths to keep."""
 
+import hashlib
 import os
 import sys
 from collections.abc import Sequence
@@ -50,3 +51,9 @@ def longest_path_allowed() -> int | None:
     except OSError:
         enabled = 0
     return None if enabled == 1 else WINDOWS_MAX_PATH
+
+
+def sha256_of(path: Path) -> str:
+    """The SHA-256 of the file's contents, read a piece at a time (a file may be large)."""
+    with path.open("rb") as file:
+        return hashlib.file_digest(file, "sha256").hexdigest()

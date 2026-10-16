@@ -9,14 +9,13 @@ unless told otherwise; and so is what was read before the paths were kept,
 unless it's looked for in folders given.
 """
 
-import hashlib
 import shutil
 import time
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scriptorium.files import absolute_path
+from scriptorium.files import absolute_path, sha256_of
 from scriptorium.store import Store
 
 # Scratch files untouched this long are left of a run stopped.
@@ -57,7 +56,7 @@ def find_missing(
     aren't there is taken to be gone too.
     """
     # Every file, not only those `ocr run` finds in a folder: it reads any file given.
-    present = {_sha256(f) for f in every_file(folders)} if folders else set[str]()
+    present = {sha256_of(f) for f in every_file(folders)} if folders else set[str]()
     found = Missing()
     for sha256 in store.files():
         shown = store.name_of(sha256) or sha256[:12]
@@ -72,7 +71,7 @@ def find_missing(
             else:
                 found.unrecorded.append(shown)
             continue
-        if any(p.is_file() and _sha256(p) == sha256 for p in paths):
+        if any(p.is_file() and sha256_of(p) == sha256 for p in paths):
             continue
         absent = sorted({p.parent for p in paths if not p.parent.is_dir()})
         if absent and not folder_missing_too:
@@ -137,10 +136,6 @@ def remove(path: Path) -> list[str]:
         except OSError as e:
             failures.append(f"{path}: {e}")
     return failures
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _size(path: Path) -> int:

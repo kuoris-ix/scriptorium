@@ -94,6 +94,8 @@ If `start`'s `protocol` differs, the worker ends with `fatal`.
     tmp/                                images for the workers (a stopped run's may be left)
 ```
 
+- `<ocr_dir>` can be read and written by its user only when the store makes it (mode 700 on
+  Linux and macOS). One there already is left as it is.
 - A file is known by its contents (SHA-256): renamed or moved, it isn't read again.
 - Every file is written whole (written to `<name>.<8 random hex digits>.part`, then renamed).
   UTF-8, no `ensure_ascii`, indent 1.
