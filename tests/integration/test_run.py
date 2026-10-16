@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pypdfium2 as pdfium
 import pytest
 from ocr_files import A4, a4_scan, prepare_that_ends_on, scan, write_pdf
 from PIL import Image
@@ -388,6 +389,43 @@ def test_a_page_that_can_t_be_rendered_fails_alone(
     assert (upright.read, upright.failed, upright.error) == (2, 1, None)
     assert "broken.png p1: couldn't tell how it's turned" in upright.failures[0]
     assert (as_it_is.read, as_it_is.failed) == (2, 1)
+
+
+def test_a_page_too_large_to_render_fails_alone(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch)
+    found = targets(folder=scans)
+    # Only the PDF's scanned page (A4 at 150 dpi, 1.9 million pixels) is over it.
+    monkeypatch.setattr(raster, "MAX_PIXELS", 1_000_000)
+
+    # One worker: the pages are rendered in this process, where the patch is.
+    outcome = run(found, store, jobs=1)
+
+    assert (outcome.read, outcome.failed, outcome.error) == (1, 1, None)
+    assert "bill.pdf p1: " in outcome.failures[0]
+    assert "pixels" in outcome.failures[0]
+
+
+def test_a_page_pdfium_can_t_render_fails_alone(
+    scans: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake(monkeypatch)
+    found = targets(folder=scans)
+    pdfium_document = pdfium.PdfDocument
+
+    def failing(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.suffix == ".pdf":
+            raise pdfium.PdfiumError("Failed to load document")
+        return pdfium_document(path, *args, **kwargs)
+
+    monkeypatch.setattr(pdfium, "PdfDocument", failing)
+
+    outcome = run(found, store, jobs=1)
+
+    assert (outcome.read, outcome.failed, outcome.error) == (1, 1, None)
+    assert "bill.pdf p1: " in outcome.failures[0]
+    assert "pdfium can't open it" in outcome.failures[0]
 
 
 def test_an_engine_telling_turns_that_can_t_start_leaves_every_page(

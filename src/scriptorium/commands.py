@@ -649,7 +649,14 @@ def split_scans(
     written = 0
     for target in found:
         for page in target.to_read(force=False):
-            image = raster.render(target.path, page, password=password)
+            try:
+                image = raster.render(target.path, page, password=password)
+            except (OSError, ValueError) as e:
+                typer.echo(
+                    f"{target.name} p{page.page}: couldn't render it: {type(e).__name__}: {e}"
+                )
+                problems += 1
+                continue
             boxes = split.find(image, page.dpi)
             typer.echo(f"{target.name} p{page.page}: {len(boxes)} document(s)")
             if not boxes:
@@ -724,7 +731,7 @@ def join_scans(
                 left = join.half(target.path, left_page, password=password)
                 right = join.half(target.path, right_page, password=password)
                 sheet = join.join(left, right, align=not no_align, trim=not keep_blank)
-            except join.Unjoinable as e:
+            except (join.Unjoinable, OSError, ValueError) as e:
                 typer.echo(f"{where}: not joined: {e}")
                 problems += 1
                 continue

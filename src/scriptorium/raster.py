@@ -175,20 +175,48 @@ def image_dpi(image: Image.Image) -> float:
     return round(value, 1) if low <= value <= high else DEFAULT_IMAGE_DPI
 
 
+# The most pixels a page is rendered at (or an image file's page read with): about the most
+# Pillow opens an image file with (twice `Image.MAX_IMAGE_PIXELS`). A page of A2 at 600 dpi
+# has 140 million. A larger page fails, rather than taking up the memory.
+MAX_PIXELS = 180_000_000
+
+
+def _check_pixels(width: int, height: int, page: PagePlan) -> None:
+    if width * height > MAX_PIXELS:
+        raise ValueError(
+            f"page {page.page} would be {width}x{height} pixels at {page.dpi:g} dpi, "
+            f"more than {MAX_PIXELS:,}"
+        )
+
+
+def open_pdf(path: Path, *, password: str | None = None) -> pdfium.PdfDocument:
+    """The PDF `path` opened with pdfium; raises ValueError if it can't be."""
+    try:
+        return pdfium.PdfDocument(path, password=password)
+    except pdfium.PdfiumError as e:
+        raise ValueError(f"pdfium can't open it: {e}") from e
+
+
 def render(path: Path, page: PagePlan, *, password: str | None = None) -> Image.Image:
-    """The image of `page` of the file `path`, in RGB or grayscale, the way it's shown."""
+    """The image of `page` of the file `path`, in RGB or grayscale, the way it's shown.
+
+    Raises ValueError for a page too large to render (`MAX_PIXELS`) or that pdfium can't render.
+    """
     if is_pdf(path):
-        pdf = pdfium.PdfDocument(path, password=password)
+        scale = page.dpi / 72
+        _check_pixels(round(page.width * scale), round(page.height * scale), page)
+        pdf = open_pdf(path, password=password)
         try:
             # Copied by the conversion: the bitmap goes with the document.
-            image: Image.Image = (
-                pdf[page.page - 1].render(scale=page.dpi / 72).to_pil().convert("RGB")
-            )
+            image: Image.Image = pdf[page.page - 1].render(scale=scale).to_pil().convert("RGB")
+        except pdfium.PdfiumError as e:
+            raise ValueError(f"pdfium can't render the page: {e}") from e
         finally:
             pdf.close()
         return image
     with Image.open(path) as file:
         file.seek(page.page - 1)
+        _check_pixels(*file.size, page)
         upright = ImageOps.exif_transpose(file)
     return upright if upright.mode in ("RGB", "L") else upright.convert("RGB")
 
