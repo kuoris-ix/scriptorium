@@ -6,6 +6,7 @@ dump is meant to be redacted and shared.
 
 import csv
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -25,6 +26,20 @@ CSV_COLUMNS = [
     "bottom",
     "confidence",
 ]
+
+# What a spreadsheet takes a cell starting with for a formula (a tab or a carriage return
+# before one of them too).
+_FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
+# A number as it's read ("-1,200", "+0.5"): a spreadsheet takes it as a number, not a formula.
+_NUMBER = re.compile(r"[+-]?[0-9][0-9,]*(?:\.[0-9]+)?")
+
+
+def spreadsheet_text(text: str) -> str:
+    """`text` as a CSV cell a spreadsheet shows as it is: with "'" before it if the
+    spreadsheet would take it for a formula, unless it's a plain number."""
+    if text.startswith(_FORMULA_STARTS) and not _NUMBER.fullmatch(text):
+        return "'" + text
+    return text
 
 
 @dataclass(frozen=True)
@@ -71,14 +86,18 @@ def _write_csv(files: list[FileRead], output: Path) -> None:
             for stored in file.pages:
                 page = stored.page
                 for word in page.words:
+                    row = {
+                        "file": file.file,
+                        "engine": file.engine,
+                        "page": page.page,
+                        "page_width": page.width,
+                        "page_height": page.height,
+                        "dpi": page.dpi,
+                        **asdict(word),
+                    }
                     writer.writerow(
                         {
-                            "file": file.file,
-                            "engine": file.engine,
-                            "page": page.page,
-                            "page_width": page.width,
-                            "page_height": page.height,
-                            "dpi": page.dpi,
-                            **asdict(word),
+                            k: spreadsheet_text(v) if isinstance(v, str) else v
+                            for k, v in row.items()
                         }
                     )
