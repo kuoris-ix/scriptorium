@@ -11,4 +11,4 @@ is turned, evening out lighting, straightening slant), running each engine as a 
 environment of its own, the common shape of what's read, the store and resuming a run, the
 commands, how accuracy is checked (scoring against fictional documents' truth, comparing
 engines on real documents), the engines and their dependencies, the settings (`OcrConfig`,
-`ProgramNames`), the tests, and what comes next.
+`ProgramNames`), and the tests.
