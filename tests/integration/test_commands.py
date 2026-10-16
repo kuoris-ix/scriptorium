@@ -8,8 +8,10 @@ import os
 import re
 import sys
 import time
+from collections.abc import Collection
 from dataclasses import replace
 from pathlib import Path
+from typing import IO
 
 import pytest
 import typer
@@ -18,7 +20,7 @@ from ocr_files import a4_scan, flatbed, form, scan, write_pdf
 from PIL import Image, ImageDraw, ImageFont
 from typer.testing import CliRunner
 
-from scriptorium import commands, engines, fictional, raster, samples, worker
+from scriptorium import check, commands, engines, fictional, raster, runner, samples, worker
 from scriptorium.engines import Engine
 from scriptorium.models import EngineInfo, OcrPage, OcrWord, StoredPage
 from scriptorium.store import RunKey, Store
@@ -753,6 +755,27 @@ def test_engines_check_starts_each_engine_installed_and_reads_a_page(
     (line,) = [line for line in output.splitlines() if line.startswith("fake ")]
     assert line.startswith("fake           works: fake 1.0 (fake-model) on cpu; started in ")
     assert line.endswith("amounts right); tells how pages are turned")
+
+
+def test_run_and_check_engines_keep_the_pdf_password_from_the_workers(
+    scans: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (scans.parent.parent / "workers" / "fake" / ".venv").mkdir()
+    passed: list[tuple[str, ...]] = []
+
+    class Recording(worker.Worker):
+        def __init__(self, command: list[str], log: IO[str], *, not_passed: Collection[str] = ()):
+            passed.append(tuple(not_passed))
+            super().__init__(command, log, not_passed=not_passed)
+
+    monkeypatch.setattr(runner, "Worker", Recording)
+    monkeypatch.setattr(check, "Worker", Recording)
+
+    assert invoke("run", str(scans), "-e", "fake")[0] == 0
+    assert invoke("check-engines")[0] == 0
+
+    assert len(passed) >= 2
+    assert set(passed) == {("TEST_PDF_PASSWORD",)}
 
 
 def test_engines_check_tells_an_engine_that_fails(

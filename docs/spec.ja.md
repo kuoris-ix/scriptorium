@@ -19,8 +19,9 @@ scriptorium（`src/scriptorium`・`workers/`）のうち、**変えると手元�
 uv run --project workers/<worker> python workers/<worker>/worker.py
 ```
 
-- `uv` は環境変数 `UV`、なければ PATH から探す
-- 使う側のプログラムの環境を指す変数（`VIRTUAL_ENV`・`UV_PROJECT_ENVIRONMENT`・`PYTHONHOME`・`PYTHONPATH`）は渡さない。
+- `uv` は環境変数 `UV`、なければ PATH から探す（Windows では作業フォルダは探さない）
+- 使う側のプログラムの環境を指す変数（`VIRTUAL_ENV`・`UV_PROJECT_ENVIRONMENT`・`PYTHONHOME`・`PYTHONPATH`）と、
+  PDF のパスワードを入れる変数（`ProgramNames.password_variable`）は渡さない（worker は画像しか読まない）。
   `PYTHONIOENCODING=utf-8` を付ける（Windows でも日本語をログに書けるように）
 - worker の標準エラー出力は、そのままログ（`<ocr_dir>/logs/<日時>-<プロセス ID>-<エンジン>.log`）に書く
 

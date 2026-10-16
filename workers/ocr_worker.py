@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import shutil
 import sys
 import time
 import traceback
@@ -223,6 +225,23 @@ def pick_device(requested: str, available: Sequence[str]) -> str:
             f"the device {requested!r} isn't available here (available: {', '.join(available)})"
         )
     return requested
+
+
+def find_command(name: str, platform: str = sys.platform) -> str | None:
+    """Where the program `name` is on the PATH, if it is. On Windows, never in the working
+    folder, which `shutil.which` looks in first: a tesseract.bat left in a folder of scans,
+    say, would be run."""
+    if platform != "win32":
+        return shutil.which(name)
+    suffixes = [s for s in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if s]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        folder = Path(entry.strip().strip('"'))
+        if not folder.is_absolute():  # "" and "." too: the working folder
+            continue
+        for suffix in suffixes:
+            if (found := folder / f"{name}{suffix}").is_file():
+                return str(found)
+    return None
 
 
 def torch_devices() -> list[str]:

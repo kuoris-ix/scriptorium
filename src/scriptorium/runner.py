@@ -169,6 +169,7 @@ def run(
     min_dpi: float,
     max_dpi: float,
     password: str | None = None,
+    not_passed: Sequence[str] = (),
     force: bool = False,
     reread: bool = False,
     orient: Engine | None = None,
@@ -184,7 +185,8 @@ def run(
     With `orient`, the pages are first turned upright as that engine tells (with
     `orient_jobs` workers); then each of the preprocessing `steps` (names, see `preprocess`)
     is done. `jobs` workers read at once. Each is started again after every `worker_pages`
-    pages it reads (0 or less: never).
+    pages it reads (0 or less: never). The workers aren't given the environment variables
+    named in `not_passed`.
     """
     preprocess.steps(steps)  # raises KeyError for a step there isn't, before anything's read
     key = RunKey.of(
@@ -213,7 +215,9 @@ def run(
         outcome.log.open("a", encoding="utf-8") as log,
         tempfile.TemporaryDirectory(dir=store.scratch()) as scratch,
     ):
-        context = _Context(store, workers_dir, launcher, Path(scratch), password, log, say)
+        context = _Context(
+            store, workers_dir, launcher, Path(scratch), password, tuple(not_passed), log, say
+        )
         turns: dict[str, dict[int, Orientation]] = {}
         untold: dict[tuple[str, int], str] = {}  # why a page's turn couldn't be told
         if orient is not None:
@@ -269,6 +273,7 @@ class _Context:
     launcher: Launcher
     scratch: Path
     password: str | None
+    not_passed: tuple[str, ...]
     log: IO[str]
     say: Say
 
@@ -416,7 +421,9 @@ def _work_through[T](
         while not stopping.is_set():
             info, taken = None, None
             try:
-                with Worker(c.launcher(engine, c.workers_dir), c.log) as worker:
+                with Worker(
+                    c.launcher(engine, c.workers_dir), c.log, not_passed=c.not_passed
+                ) as worker:
                     with lock:
                         running.add(worker)
                     try:

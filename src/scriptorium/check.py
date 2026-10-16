@@ -7,6 +7,7 @@ read many pages.
 
 import random
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import IO
@@ -47,11 +48,15 @@ def check(
     image: Path,
     truth: Truth,
     log: IO[str],
+    not_passed: Sequence[str] = (),
 ) -> Checked:
-    """Start `engine`'s worker with `command` and have it read `image` (of `truth`)."""
+    """Start `engine`'s worker with `command` and have it read `image` (of `truth`).
+
+    The worker isn't given the environment variables named in `not_passed`.
+    """
     started = time.perf_counter()
     try:
-        worker = Worker(command, log)
+        worker = Worker(command, log, not_passed=not_passed)
     except WorkerFailed as e:
         return Checked(None, f"couldn't start: {e}")
     with worker:
