@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from ocr_files import A4, a4_scan, scan, write_pdf
+from ocr_files import A4, a4_scan, prepare_that_ends_on, scan, write_pdf
 from PIL import Image
 
 from scriptorium import raster, runner
@@ -537,3 +537,30 @@ def test_a_run_stopped_midway_stops_its_workers_and_keeps_what_was_read(
 
     assert 1 <= len(store.done(found[0].sha256, key())) < 6
     assert list((store.root / "tmp").iterdir()) == []  # the pages rendered ahead are gone
+
+
+def test_a_page_lost_with_the_process_rendering_it_is_rendered_again(
+    tmp_path: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_pdf(tmp_path / "six.pdf", [a4_scan(100)] * 6)
+    found = targets(path, folder=tmp_path)
+    fake(monkeypatch)
+    monkeypatch.setattr(runner, "_prepare", prepare_that_ends_on(3, once=True))
+
+    outcome = run(found, store, jobs=2)
+
+    assert (outcome.read, outcome.failed, outcome.left) == (6, 0, 0)
+
+
+def test_only_the_page_that_ends_the_process_rendering_it_fails(
+    tmp_path: Path, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_pdf(tmp_path / "six.pdf", [a4_scan(100)] * 6)
+    found = targets(path, folder=tmp_path)
+    fake(monkeypatch)
+    monkeypatch.setattr(runner, "_prepare", prepare_that_ends_on(3, once=False))
+
+    outcome = run(found, store, jobs=2)
+
+    assert (outcome.read, outcome.failed, outcome.left) == (5, 1, 0)
+    assert store.failed(found[0].sha256, key()) == {3: "the process rendering the page stopped"}
