@@ -417,7 +417,7 @@ myapp ocr remove-missing                           # 消したスキャンの結
   全体を止めない。読めなかったページ・開けなかったファイル・起動できなかったエンジンがあれば終了コード 1
   - `--force`: 文字の層のあるページも読む。`--reread`: 読んだページも読み直す
   - パスワード付きの PDF は `--password` か環境変数（変数の名前は使う側が `ProgramNames.password_variable` で渡す）
-- `dump-text`: PDF の文字の書き出し（`pdf.write_dump`）と同じ形（CSV は BOM 付き UTF-8）に、`engine`・`dpi`・`confidence` を足したもの。
+- `dump-text`: PDF の文字の書き出し（`pdf.write_dump`）と同じ形（CSV は BOM 付き UTF-8）に、`engine`・`dpi`・`confidence` を足したもの。CSV では、表計算ソフトが式と取る文字（`=`・`+`・`-`・`@`）で始まる値は、数だけのものを除き、先頭に `'` を付ける。
   エンジンの追加情報は入れない（共有する前に個人情報を消すファイルなので）
 - バックグラウンドでの放置は OS の機能を使う（`engine-setup.ja.md` に例を書いた）。止めても続きから読める
 

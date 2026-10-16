@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pdfplumber
 
+from scriptorium.dump import spreadsheet_text
 from scriptorium.files import find_files
 from scriptorium.images import largest_image
 
@@ -182,12 +183,16 @@ def write_csv(pdfs: list[PdfWords], output: Path) -> None:
         for pdf in pdfs:
             for page in pdf.pages:
                 for word in page.words:
+                    row = {
+                        "file": pdf.file,
+                        "page": page.page,
+                        "page_width": page.width,
+                        "page_height": page.height,
+                        **asdict(word),
+                    }
                     writer.writerow(
                         {
-                            "file": pdf.file,
-                            "page": page.page,
-                            "page_width": page.width,
-                            "page_height": page.height,
-                            **asdict(word),
+                            k: spreadsheet_text(v) if isinstance(v, str) else v
+                            for k, v in row.items()
                         }
                     )

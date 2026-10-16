@@ -104,3 +104,14 @@ def test_extract_all_reads_a_single_file_too(tmp_path: Path) -> None:
     (one,) = pdf.extract_all(tmp_path / "in" / "w.pdf")
 
     assert (one.file, [w.text for w in one.pages[0].words]) == ("w.pdf", ["源泉徴収票"])
+
+
+def test_write_csv_keeps_text_from_being_a_formula(tmp_path: Path) -> None:
+    word = pdf.Word("=1+2", 10.0, 50.0, 20.0, 30.0, "Fictional", 10.0)
+    pdfs = [pdf.PdfWords("=sample.pdf", [pdf.Page(1, 595.0, 842.0, [word])])]
+
+    pdf.write_csv(pdfs, tmp_path / "words.csv")
+
+    with (tmp_path / "words.csv").open(encoding="utf-8-sig", newline="") as f:
+        (row,) = csv.DictReader(f)
+    assert (row["file"], row["text"], row["fontname"]) == ("'=sample.pdf", "'=1+2", "Fictional")
