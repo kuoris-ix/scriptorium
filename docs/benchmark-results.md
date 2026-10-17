@@ -32,7 +32,8 @@ with one) and 64 pages 8.5 s with Apple Vision (26.4 s with one), and Apple Visi
 words with one worker and with eight.
 On a Linux virtual machine (VMware Workstation Pro 26H1, Ubuntu 24.04, CPU only, on the same Ryzen 9
 5950X) all five Linux engines work, PaddleOCR included. Its 64 documents are drawn in another
-font than the Windows and Mac ones, so their accuracy isn't compared directly. Tesseract's speed-up follows the vCPUs
+font than the Windows and Mac ones, so their accuracy isn't compared directly (read there,
+the Windows documents give NDLOCR-Lite the same numbers as on Windows and a Mac). Tesseract's speed-up follows the vCPUs
 (40 pages: 34.0 s with one worker, and 6.9 s with 8 workers on 8 vCPUs, 4.7 s with 16 on 16,
 12.2 s with 4 on 4), while NDLOCR-Lite reads fastest with one worker; `--jobs auto` chose 3, 6 and
 12 workers for 4, 8 and 16 vCPUs.

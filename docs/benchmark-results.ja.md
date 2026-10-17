@@ -1660,7 +1660,7 @@ Tesseract 0.1 秒。
 - **worker を増やして速くなるのは Tesseract**。8 worker で 4.9 倍、`auto`（6）で 4.4 倍。NDLOCR-Lite は増やすと遅くなり
   （4 worker で 0.86 倍）、`auto` が 1 つにするのは合っている。どちらも、Windows・Mac と同じ傾向
 - vCPU の数を変えても、**`auto` の worker の数は、コアの数に合った**（上の表）
-- **Windows・Mac と同じ書類ではないので、正確さの数字は直接は比べられない**。Windows と Mac は同じ 64 ページを読み、金額の完全一致は yomitoku 96.5%、yomitoku-lite 99.6%、PaddleOCR 99.7%、NDLOCR-Lite 80.8% で、2 つの環境の数字が同じだった。Linux（CPU）は 96.3%、98.9%、99.8%、69.1%。yomitoku・yomitoku-lite・PaddleOCR は近いが、NDLOCR-Lite は 11 ポイント低い（日付 87.2% → 69.8%、文字の誤り率 15.8% → 24.5%）。Tesseract は版も違う（5.3.4 と 5.5.3）。NDLOCR-Lite の差が、書類（フォント）のせいか Linux のせいかは、確かめていない。Windows の 64 ページを Linux に写して読めば、分かる
+- **Windows・Mac と同じ書類ではないので、正確さの数字は直接は比べられない**。Windows と Mac は同じ 64 ページを読み、金額の完全一致は yomitoku 96.5%、yomitoku-lite 99.6%、PaddleOCR 99.7%、NDLOCR-Lite 80.8% で、2 つの環境の数字が同じだった。Linux（CPU）は 96.3%、98.9%、99.8%、69.1%。yomitoku・yomitoku-lite・PaddleOCR は近いが、NDLOCR-Lite は 11 ポイント低い（日付 87.2% → 69.8%、文字の誤り率 15.8% → 24.5%）。Tesseract は版も違う（5.3.4 と 5.5.3）。NDLOCR-Lite の差は、書類（フォント）のせいだった: Windows の 64 ページ（游ゴシック）をこの仮想マシンに写して NDLOCR-Lite で読むと、金額 80.8%、日付 87.2%、文字の誤り率 15.8%、読み落とし 71/2672 で、Windows・Mac と同じ数字になった（金額の値の一致 82.4%、1 ページ 0.8 秒）。Linux の NDLOCR-Lite は、Windows・Mac と同じに読む
 - 値は、この仮想マシン・架空の書類・40 ページのもの。yomitoku・PaddleOCR の速さは、この仮想マシンでは測っていない
 
 ### 再現のしかた
@@ -1675,6 +1675,11 @@ uv run scriptorium check-engines
 uv run scriptorium make-samples data/ocr-trial --count 1 --seed 1
 uv run scriptorium run data/ocr-trial -e all
 uv run scriptorium score-engines data/ocr-trial -e all --markdown
+
+# Windows で作った書類（游ゴシック）を写して読む
+unzip ocr-trial-win.zip -d data/    # Windows の data/ocr-trial（make-samples --count 1 --seed 1）を zip にしたもの
+SCRIPTORIUM_DIR=data/ocr-win-docs uv run scriptorium run data/ocr-trial-win -e ndlocr-lite
+SCRIPTORIUM_DIR=data/ocr-win-docs uv run scriptorium score-engines data/ocr-trial-win -e ndlocr-lite --markdown
 
 # data/speed/e2e の 4 つの PDF は、「Windows: 速さ」の「再現のしかた」と同じに作る
 for j in 1 2 4 6 8 auto; do
