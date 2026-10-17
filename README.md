@@ -6,19 +6,21 @@
 
 English | [日本語](README.ja.md)
 
-Reading scanned documents (images, and PDFs of them) with OCR engines, each run in an
-environment of its own, and keeping what they read. Made for Japanese documents such as
-payslips, receipts and tax forms. scriptorium is a Python library: a project adds its `ocr`
-commands to its own command line (a Typer app), and reads what was kept from its own code. To
-try it, or to compare engines, the same commands run on their own as `scriptorium`.
+Reading scanned documents (images, and PDFs of them) with OCR engines, and keeping what they
+read. Made for Japanese documents such as payslips, receipts and tax forms; everything stays on
+your machine. scriptorium is a Python library: a project adds its `ocr` commands to its own
+command line (a Typer app), and reads what was kept from its own code. To try it, or to compare
+engines, the same commands run on their own as `scriptorium`.
 
-- Several engines side by side (YomiToku, PaddleOCR, NDLOCR-Lite, Apple Vision, Windows OCR,
-  Tesseract), each in its own Python environment, talked with over a small JSON protocol.
-- What's read is kept page by page, keyed by the file's contents and by everything the reading
-  depends on, so a run can be stopped and resumed, and nothing is read twice.
-- Tools to choose engines: fictional documents with their truth to score engines on, and a
-  diff of what engines read differently on real documents (which have no truth).
-- Reading the text layer of PDFs that have one (`scriptorium.pdf`), in the same terms.
+- **Engines that don't get in each other's way.** Each engine (YomiToku, PaddleOCR, NDLOCR-Lite,
+  Apple Vision, Windows OCR, Tesseract) runs in a Python environment of its own, talked with over
+  a small JSON protocol, so engines whose libraries clash work side by side, and switching
+  engines is a setting.
+- **Nothing is read twice.** What's read is kept page by page, keyed by the file's contents and
+  by everything the reading depends on, so a long run can be stopped and goes on where it was.
+- **Choosing an engine with evidence.** Fictional documents with their truth to score engines
+  on, a diff of what engines read differently on real documents (which have no truth), and the
+  engines' results on Windows, macOS and Linux (`docs/benchmark-results.md`).
 
 Status: 0.x. The commands' help and most of `docs/` are in Japanese for now.
 
