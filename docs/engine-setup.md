@@ -7,7 +7,7 @@ read fictional documents with `scriptorium run`, and see whether it installs and
 
 On Windows (6 engines) and a Mac (the same but Windows OCR), these steps were run and what
 didn't work was fixed (2026-10; the results are in `benchmark-results.md`). Linux
-hasn't been tried yet. If something doesn't work on a new machine or a new version, the error
+(Ubuntu, CPU only) was checked the same way. If something doesn't work on a new machine or a new version, the error
 and the log, pasted as they are into an issue, are what's needed to fix it.
 
 The commands are run in the clone, with the `scriptorium` command (`uv run scriptorium`, the

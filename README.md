@@ -1,5 +1,9 @@
 # scriptorium
 
+[![CI](https://github.com/kuoris-ix/scriptorium/actions/workflows/ci.yml/badge.svg)](https://github.com/kuoris-ix/scriptorium/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)
+
 English | [日本語](README.ja.md)
 
 Reading scanned documents (images, and PDFs of them) with OCR engines, each run in an
@@ -73,9 +77,13 @@ variable names to show in help and messages (`ProgramNames`):
 ```python
 from pathlib import Path
 
+import typer
+
 from scriptorium import fictional
 from scriptorium.commands import make_app
 from scriptorium.config import OcrConfig, ProgramNames
+
+app = typer.Typer()  # your own command line
 
 
 def config() -> OcrConfig:
@@ -132,8 +140,10 @@ doesn't allow commercial use. Models are downloaded on first use (no images are 
 ## What's kept, and privacy
 
 Everything read stays on your machine, in `OcrConfig.ocr_dir` (`SCRIPTORIUM_DIR`): the text of your documents, in
-JSON files. Treat that folder as you treat the scans. `ocr remove-missing` removes what was
-read from files you've deleted.
+JSON files. Treat that folder as you treat the scans. scriptorium makes it readable and writable by its
+user only (mode 700 on Linux and macOS), but leaves a folder that already exists as it is: on a
+shared machine, run `chmod 700` on it. `ocr remove-missing` removes what was read from files
+you've deleted.
 
 ## Development
 

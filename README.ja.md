@@ -1,5 +1,9 @@
 # scriptorium
 
+[![CI](https://github.com/kuoris-ix/scriptorium/actions/workflows/ci.yml/badge.svg)](https://github.com/kuoris-ix/scriptorium/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)
+
 [English](README.md) | 日本語
 
 スキャンした書類（画像と、画像だけの PDF）を OCR のエンジンで読み、読んだ結果を保存する道具です。エンジンは
@@ -73,9 +77,13 @@ Typer のアプリにコマンドを付けます:
 ```python
 from pathlib import Path
 
+import typer
+
 from scriptorium import fictional
 from scriptorium.commands import make_app
 from scriptorium.config import OcrConfig, ProgramNames
+
+app = typer.Typer()  # 自分のコマンドライン
 
 
 def config() -> OcrConfig:
@@ -130,7 +138,9 @@ scriptorium はエンジンを含みません。各 worker の `pyproject.toml` 
 ## 保存するものとプライバシー
 
 読んだものはすべて、手元の `OcrConfig.ocr_dir`（`SCRIPTORIUM_DIR`）に残ります。中身は書類の文字で、JSON のファイルです。この
-フォルダは、スキャンと同じように扱ってください。`ocr remove-missing` で、消したファイルから読んだ結果を消せます。
+フォルダは、スキャンと同じように扱ってください。scriptorium は、このフォルダを作るときは、作ったユーザーだけが読み書き
+できるようにします（Linux・macOS ではモード 700）。すでにあるフォルダはそのままなので、共有の PC では `chmod 700` を
+実行してください。`ocr remove-missing` で、消したファイルから読んだ結果を消せます。
 
 ## 開発
 

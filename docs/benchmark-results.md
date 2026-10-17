@@ -5,7 +5,7 @@ English | [日本語](benchmark-results.ja.md)
 > The English version is in preparation; the Japanese version is complete. Its tables are
 > mostly numbers, readable as they are.
 
-What the engines read from fictional documents, following the plan in `benchmark.md`: Tesseract
+What the engines read from fictional documents, following the method in `benchmark.md`: Tesseract
 as the baseline; every engine on Windows (on the GPU and the CPU) and on a Mac; telling how
 pages are turned, and preprocessing; long runs (1,600 pages) and the workers' memory; and the
 speed: where a page's time goes (rendering it against reading it) and several workers at once, on

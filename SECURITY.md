@@ -10,8 +10,10 @@ this repository's Security tab (private vulnerability reporting), not in a publi
 - A problem in an OCR engine itself (YomiToku, PaddleOCR and the others) belongs to that
   engine's project; report it there.
 
-scriptorium is maintained in spare time, so an answer may take a few days. A confirmed
-vulnerability is fixed in a new release, with a GitHub security advisory.
+scriptorium is maintained in spare time, so an answer may take a few days. A vulnerability
+reported to us is fixed in a new release, with a GitHub security advisory. One we find
+ourselves (in a review before a release, say) is fixed the same way, and listed in the
+release notes under Security.
 
 ## Supported versions
 

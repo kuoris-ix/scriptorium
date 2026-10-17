@@ -1,4 +1,4 @@
-# OCR engine comparison plan
+# Comparing the OCR engines
 
 English | [日本語](benchmark.ja.md)
 

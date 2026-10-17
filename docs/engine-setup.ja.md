@@ -6,7 +6,7 @@
 問題と読み取りの様子を確かめる手順。
 
 Windows（6 エンジン）と Mac（Windows の OCR を除く 6 エンジン）では、この手順で動かして確かめ、動かなかったところは
-直してある（2026-10、結果は `benchmark-results.ja.md`）。Linux はまだ。新しい環境・新しい版で動かなかったら、エラーや
+直してある（2026-10、結果は `benchmark-results.ja.md`）。Linux（Ubuntu、CPU のみ）でも、同じように確かめた。新しい環境・新しい版で動かなかったら、エラーや
 ログをそのまま Issue に貼れば、直す材料になる。
 
 コマンドは clone の中で、`scriptorium` コマンド（`uv run scriptorium`、README の「試す」）で動かす。scriptorium の
