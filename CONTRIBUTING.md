@@ -63,9 +63,12 @@ scriptorium reads personal documents (payslips, tax forms, receipts), so:
 
 - Tests and sample documents use fictional values only: made-up names, shops and companies
   (no real banks, employers or people), random amounts and dates.
-- Never put scans, text read from real documents, personal information, paths of your machine
-  or its specs in the repository, an issue or a pull request. When reporting a misreading,
-  reproduce it with a fictional document (`ocr make-samples`, or one you draw) if you can.
+- Never put scans, text read from real documents, personal information, or paths, user names
+  and host names of your machine in the repository, an issue or a pull request. When reporting
+  a misreading, reproduce it with a fictional document (`ocr make-samples`, or one you draw) if
+  you can.
+- A benchmark says what it was measured on: the versions of scriptorium and of each engine, the
+  OS and its version, and the CPU, GPU and memory. These describe a machine, not a person.
 
 ## Workers and dependencies
 
