@@ -69,7 +69,7 @@ uv run scriptorium score-engines data/ocr-trial             # どれだけ正し
 
 ```toml
 [project]
-dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.2.0"]
+dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.3.0"]
 ```
 
 そして、自分の設定（`OcrConfig`）と、ヘルプやメッセージに出すコマンド名・環境変数名（`ProgramNames`）を渡して、
