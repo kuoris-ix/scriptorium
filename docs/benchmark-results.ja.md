@@ -17,7 +17,7 @@
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-08 |
-| 環境 | Linux（Ubuntu 24.04、コンテナ）、CPU |
+| 環境 | Linux（Ubuntu 24.04、クラウド上のコンテナ）、CPU のみ。CPU の型番とメモリの量は記録していない |
 | エンジン | Tesseract 5.3.4（Ubuntu のパッケージ）、`jpn+eng`、psm 3（`workers/tesseract`） |
 | 書類 | `ocr make-samples --count 2 --seed 1`（4 種類 × 2 通り × 劣化 16 通り = 128 ページ）、フォントは IPA ゴシック |
 | 設定 | 既定（300〜600dpi） |
@@ -761,7 +761,7 @@ uv run scriptorium score-engines data/ocr-long -e yomitoku-lite -e paddleocr --o
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-09 |
-| 環境 | macOS 27.0.1、Apple シリコン（MPS） |
+| 環境 | macOS 27.0.1、Apple M4 Pro（14 コア）、メモリ 48GB（MPS） |
 | 装置 | yomitoku・yomitoku-lite は MPS（Mac の GPU、`auto` で選ばれる）。PaddleOCR・NDLOCR-Lite・Tesseract は CPU。Apple Vision は Vision が自分で選ぶ（`apple`） |
 | エンジン | yomitoku 0.15.0、PaddleOCR 3.7.0（PaddlePaddle 3.3.1）、NDLOCR-Lite 1.0.0、Apple Vision（ocrmac 1.0.1、`accurate`、言語 `ja-JP`・`en-US`）、Tesseract 5.5.3（Homebrew の `tesseract`・`tesseract-lang`） |
 | 書類 | Windows の 64 ページ（`--count 1 --seed 1`、游ゴシック）をコピーしたもの |
@@ -951,7 +951,7 @@ SCRIPTORIUM_DIR=data/ocr-cpu uv run scriptorium score-engines data/ocr-trial -e 
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-09 |
-| 環境 | 上と同じ（macOS 27.0.1、Apple シリコン） |
+| 環境 | 上と同じ（macOS 27.0.1、Apple M4 Pro（14 コア）、メモリ 48GB） |
 | 書類 | Windows の 256 ページ（`--count 4 --seed 1`）をコピーしたもの。うち 50 ページは 64 ページの節と同じ中身なので、新たに読んだのは 206 ページ |
 | 設定 | `--orient tesseract`（前処理なし） |
 
@@ -1022,7 +1022,7 @@ phys_footprint を `footprint -p <pid>` で 20 秒ごとに記録した。
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-13 |
-| 環境 | Linux（Ubuntu 24.04、コンテナ）、CPU 4 コア、GPU なし |
+| 環境 | Linux（Ubuntu 24.04、クラウド上のコンテナ）、CPU 4 コア、GPU なし。CPU の型番とメモリの量は記録していない |
 | エンジン | Tesseract 5.3.4（Ubuntu のパッケージ、`jpn+eng`、psm 3）、NDLOCR-Lite 1.0.0（onnxruntime 1.26.0） |
 | 書類 | `ocr make-samples --count 1 --seed 1`（64 ページ、フォントは Noto Sans CJK）と、その請求書・明細の 300dpi・600dpi の画像を交互に 10 ページ並べた、画像だけの PDF（A4、JPEG） |
 | 設定 | 既定（300〜600dpi）。向きの判定・前処理はなし |
@@ -1383,7 +1383,7 @@ Mac で、「Linux: 速さ」「Windows: 速さ」の測っていなかったエ
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-14 |
-| 環境 | macOS 27.0.1（Apple シリコン） |
+| 環境 | macOS 27.0.1、Apple M4 Pro（14 コア）、メモリ 48GB |
 | エンジン | Apple Vision（ocrmac 1.0.1、`accurate`）、yomitoku 0.15.0（yomitoku・yomitoku-lite、MPS）、NDLOCR-Lite 1.0.0、PaddleOCR 3.7.0（PaddlePaddle 3.3.1、CPU） |
 | 書類 | 架空の書類（`make-samples --count 1 --seed 1`）の請求書・明細・レシート・通帳の 150・200・300・600dpi の PNG 16 枚を繰り返したもの（Apple Vision は 48〜96 ページ、yomitoku は 32、NDLOCR-Lite は 24、PaddleOCR は 8） |
 | 測り方 | 「Linux: 速さ」と同じ。描いておいた PNG のキューを N 個の worker で分け合う（起動の時間は除く）。メモリは worker のプロセスの最大の RSS の合計。`ocr run` での時間は、`make-samples` の 64 ページを新しい保存先に読んだ全体（worker の起動を含む） |
