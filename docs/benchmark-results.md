@@ -24,3 +24,5 @@ times as physical cores (10.6 times with 16), Windows' OCR (5.6 times with 16) a
 using every core, and an engine on the GPU with one. `ocr run` now does so (`--jobs auto`):
 40 pages took 36.1 s before and 6.7 s after with Tesseract, 14.7 s and 5.2 s with Windows' OCR,
 and 64 pages 25.8 s and 8.5 s with Apple Vision, and what's read is the same.
+Measured again on `master` before v0.3.0 (Windows, Ryzen 9 5950X, RTX 2080 SUPER): the 256
+pages are read exactly as before, and Tesseract and Windows' OCR keep their speed-up.
