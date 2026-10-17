@@ -1555,3 +1555,129 @@ for j in 1 2 4 8 12 auto; do
   SCRIPTORIUM_DIR=data/ocr-speed-tmp uv run scriptorium run data/speed/e2e -e tesseract --reread --jobs $j
 done
 ```
+
+
+## Linux（VMware の仮想マシン）: master（v0.3.0 の前）での測り直し
+
+並列化（`--jobs`、先読み）とその後の修正を入れた `master` で、Linux の全エンジンの動作と、正確さ・速さを測った。Linux でこれまで
+確かめていたのは、コンテナ（4 コア）の Tesseract と NDLOCR-Lite だけだった。GPU は使えないので、全エンジンが CPU で動く。
+v0.3.0 を出す前の確認を兼ねる。
+
+### 条件
+
+| 項目 | 内容 |
+|---|---|
+| 日付 | 2026-10-17 |
+| scriptorium | `master` の 22d53e0（v0.2.0 のあと 17 コミット）、Python 3.14.8 |
+| 環境 | VMware Workstation Pro 26H1（26.0.0.25388281、Windows 11 のホスト）上の Ubuntu 24.04.5 LTS（カーネル 7.0.0-38）。ホストの CPU は AMD Ryzen 9 5950X（物理 16 コア・論理 32 スレッド）。GPU のパススルーは使わない |
+| 仮想マシン | 8 vCPU（1 ソケット × 8 コア）、RAM 16GB。ほかに 4 vCPU（RAM 16GB）と 16 vCPU（RAM 32GB）で速さだけ測った |
+| エンジン | Tesseract 5.3.4（`jpn+eng`、psm 3）、NDLOCR-Lite 1.0.0、yomitoku 0.15.0（yomitoku・yomitoku-lite。PyTorch は PyPI の CPU 版）、PaddleOCR 3.7.0（PaddlePaddle 3.3.1、CPU） |
+| 装置 | すべて CPU |
+| 書類 | `ocr make-samples --count 1 --seed 1`（4 種類 × 劣化 16 通り = 64 ページ）を、この仮想マシンで作った。フォントは、`fonts-noto-cjk` を入れて `ocr make-samples` が選んだ Linux の日本語のフォント。Windows・Mac の 64 ページは游ゴシックの書類なので、**同じ書類ではない** |
+| 設定 | 既定（向きの判定も前処理もなし。worker の数は `--jobs auto`） |
+
+vCPU は仮想マシンの論理スレッドで、ホストの物理コアとは限らない。この表の速さは、すべて「仮想マシン上の値」で、ホストでほかの
+作業はしていない。worker の環境（`workers/`）は、`uv sync` で `uv.lock` どおりにした。
+
+### 動作
+
+`ocr check-engines` は、Tesseract・NDLOCR-Lite・yomitoku・yomitoku-lite・PaddleOCR のすべてで動いた（サンプル 1 枚の金額は、
+yomitoku・yomitoku-lite・PaddleOCR が 12 個すべて、NDLOCR-Lite が 11 個、Tesseract が 10 個）。Apple Vision と Windows の OCR は、
+「macOS のみ」「Windows のみ」と理由が出て、飛ばされた。`workers/paddleocr` の `paddlepaddle-gpu` は、CPU だけの Linux でも
+そのまま入って動いた。
+
+起動の時間（モデルを読み込むまで）は、yomitoku 62.0 秒、PaddleOCR 27.3 秒、yomitoku-lite 20.1 秒、NDLOCR-Lite 5.7 秒、
+Tesseract 0.1 秒。
+
+### 正確さ（64 ページ）
+
+`ocr make-samples --count 1 --seed 1` の 64 ページ（4 種類 × 16 通りの劣化）を、`-e all` で読んだ。失敗は 0 ページ。
+
+| エンジン | 金額の完全一致 | 日付の完全一致 | 文字の誤り率 | 読み落とした行 |
+|---|---|---|---|---|
+| PaddleOCR | 99.8% | 99.7% | 0.9% | 2 / 2672 |
+| yomitoku-lite | 98.9% | 99.2% | 0.9% | 0 / 2672 |
+| yomitoku | 96.3% | 95.1% | 3.2% | 0 / 2672 |
+| Tesseract | 76.2% | 88.3% | 18.7% | 224 / 2672 |
+| NDLOCR-Lite | 69.1% | 69.8% | 24.5% | 87 / 2672 |
+
+- 向きを正す設定を付けていないので、逆さまの書類（`turned180`）は、yomitoku が金額 44.1%、yomitoku-lite が 86.4%、NDLOCR-Lite と
+  Tesseract が 0% だった。PaddleOCR は 98.3%
+- Tesseract は、影のある書類（`shadow`）で金額 44.1%、写真風（`photo`）で 0.0% だった
+
+この読み取りの「1 ページの時間」は載せない。同じ読み取りを 2 つ同時に動かしたため、時間が長く出ている（読んだ内容は
+同じ）。時間は、次の「速さ」の測定だけを見る。
+
+### 速さ（`ocr run`、40 ページ、8 vCPU）
+
+「Windows: 速さ」と同じ作りの 40 ページ（A4 の 300dpi の PDF 4 つ、各 10 ページ）を、エンジンごとに `--reread` で読み直した。
+時間はコマンド全体（worker の起動を含む、秒）で、3 回の中央値。3 回のぶれは 1 秒以内だった。
+
+| `--jobs` | Tesseract | NDLOCR-Lite |
+|---|---|---|
+| 1 | 34.0 | **40.4** |
+| 2 | 18.2 | 44.6 |
+| 4 | 10.0 | 47.2 |
+| 6 | 7.6 | 測らず |
+| 8 | **6.9** | 測らず |
+| auto | 7.8（6 worker） | 41.8（1 worker） |
+
+`auto` は、8 コアから 2 つを残して、Tesseract を 6 worker にした。8 worker より 1 割ほど遅いだけで、仮想マシンのほかの
+作業に空きが残る。
+
+### vCPU の数を変える（4・8・16）
+
+仮想マシンの電源を切って vCPU の数（と RAM）を変え、同じ 40 ページを測った。4 vCPU は RAM 16GB、16 vCPU は 32GB。時間は
+コマンド全体（秒）で、3 回の中央値。
+
+| `--jobs` | Tesseract 4 vCPU | Tesseract 8 vCPU | Tesseract 16 vCPU |
+|---|---|---|---|
+| 1 | 34.0 | 34.0 | 34.3 |
+| 2 | 18.3 | 18.2 | 測らず |
+| 3 | 13.7 | 測らず | 測らず |
+| 4 | **12.2** | 10.0 | 10.1 |
+| 8 | 測らず | **6.9** | 5.9 |
+| 12 | 測らず | 測らず | 5.1 |
+| 16 | 測らず | 測らず | **4.7** |
+| auto | 13.8（3 worker） | 7.8（6 worker） | 5.1（12 worker） |
+
+| `--jobs` | NDLOCR-Lite 4 vCPU | NDLOCR-Lite 8 vCPU | NDLOCR-Lite 16 vCPU |
+|---|---|---|---|
+| 1 | 47.6 | 40.4 | 38.3 |
+| auto（1 worker） | 45.8 | 41.8 | 38.4 |
+
+- `auto` の worker の数は、4 コアで 3、8 コアで 6、16 コアで 12 だった（コアの数から 4 分の 1 を空ける）
+- Tesseract は、vCPU の数に合わせて速くなる。worker の数がコアの数のとき、1 worker に対して 4 vCPU で 2.8 倍、8 vCPU で
+  4.9 倍（8 worker）、16 vCPU で 7.3 倍（16 worker）。`auto` はどれも最速より 1 割ほど遅いだけ（2.5 倍、4.4 倍、6.7 倍）
+- 16 vCPU でも、倍率はコアの数の半分ほど。ホストは 16 コア・32 スレッドで、16 vCPU はホストの論理スレッドに載るため、
+  物理 16 コア分の力は出ていない
+- NDLOCR-Lite は 1 worker のままで、vCPU を増やすと 47.6 → 40.4 → 38.3 秒と少しずつ速くなる（1 つの worker がコアを
+  まとめて使う）
+
+### わかったこと
+
+- **Linux で、5 つのエンジンがすべて、CPU で動いた**。PaddleOCR も、Linux の CPU でそのまま入った
+- **worker を増やして速くなるのは Tesseract**。8 worker で 4.9 倍、`auto`（6）で 4.4 倍。NDLOCR-Lite は増やすと遅くなり
+  （4 worker で 0.86 倍）、`auto` が 1 つにするのは合っている。どちらも、Windows・Mac と同じ傾向
+- vCPU の数を変えても、**`auto` の worker の数は、コアの数に合った**（上の表）
+- **Windows・Mac と同じ書類ではないので、正確さの数字は直接は比べられない**。Windows と Mac は同じ 64 ページを読み、金額の完全一致は yomitoku 96.5%、yomitoku-lite 99.6%、PaddleOCR 99.7%、NDLOCR-Lite 80.8% で、2 つの環境の数字が同じだった。Linux（CPU）は 96.3%、98.9%、99.8%、69.1%。yomitoku・yomitoku-lite・PaddleOCR は近いが、NDLOCR-Lite は 11 ポイント低い（日付 87.2% → 69.8%、文字の誤り率 15.8% → 24.5%）。Tesseract は版も違う（5.3.4 と 5.5.3）。NDLOCR-Lite の差が、書類（フォント）のせいか Linux のせいかは、確かめていない。Windows の 64 ページを Linux に写して読めば、分かる
+- 値は、この仮想マシン・架空の書類・40 ページのもの。yomitoku・PaddleOCR の速さは、この仮想マシンでは測っていない
+
+### 再現のしかた
+
+```bash
+sudo apt install -y git curl build-essential tesseract-ocr tesseract-ocr-jpn \
+  libgl1 libglib2.0-0 fonts-noto-cjk
+uv sync
+for w in tesseract ndlocr_lite yomitoku paddleocr; do uv sync --project workers/$w; done
+uv run scriptorium check-engines
+
+uv run scriptorium make-samples data/ocr-trial --count 1 --seed 1
+uv run scriptorium run data/ocr-trial -e all
+uv run scriptorium score-engines data/ocr-trial -e all --markdown
+
+# data/speed/e2e の 4 つの PDF は、「Windows: 速さ」の「再現のしかた」と同じに作る
+for j in 1 2 4 6 8 auto; do
+  SCRIPTORIUM_DIR=data/ocr-speed-$j uv run scriptorium run data/speed/e2e -e tesseract --reread --jobs $j
+done
+```

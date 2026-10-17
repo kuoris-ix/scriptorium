@@ -14,10 +14,11 @@
 | エンジンを別の環境で動かす worker とやりとり | 済み（`worker.py`・`workers/ocr_worker.py`） |
 | 保存と再開 | 済み（`store.py`） |
 | コマンド `ocr run`・`ocr status`・`ocr list-engines`・`ocr dump-text` | 済み（`commands.py`） |
-| worker: Tesseract | 済み。Linux（コンテナ）・Windows・Mac で動かして確かめた |
+| worker: Tesseract | 済み。Linux（コンテナ・仮想マシン）・Windows・Mac で動かして確かめた |
 | worker: yomitoku・yomitoku-lite・Windows の OCR | 済み。Windows（yomitoku は CUDA）で動かして確かめた（`ocr check-engines`）。全エンジンの比較は `benchmark-results.ja.md` |
 | worker: PaddleOCR・NDLOCR-Lite | 済み。Windows で動かして見つかった問題（PaddleOCR は cuDNN が見つからない、NDLOCR-Lite は 1.3.0 以降の配布の不具合）を直し、Windows（PaddleOCR は CUDA）で動くことを確かめた |
 | worker: Apple Vision | 済み。Mac で動かして確かめた（2026-10-09）。ほかの worker も Mac で動き、Windows と同じ結果になった（`benchmark-results.ja.md` の「Mac」） |
+| worker: Linux（VMware の仮想マシン、CPU のみ） | 済み。Tesseract・NDLOCR-Lite・yomitoku・yomitoku-lite・PaddleOCR が動くことを確かめた（2026-10-17、`benchmark-results.ja.md` の「Linux（VMware の仮想マシン）」） |
 | 前処理: ページの向きの判定 | 済み（`--orient tesseract`。Tesseract の OSD で判定し、正しい向きに回してから読む） |
 | 前処理: 照明のむらの補正・傾きの補正 | 済み（`--preprocess flatten,deskew`、`preprocess.py`） |
 | 何枚も並べたスキャンを切り出す（`ocr split-scans`）・2 ページに分けて読んだ書類をつなぐ（`ocr join-scans`） | 済み（`split.py`・`join.py`） |
@@ -43,7 +44,7 @@
 - **ローカルで動くエンジンだけを使う。** 読む書類（個人の書類）を外に出さない。クラウドの OCR は使わない
 - **速度より精度を優先する。** 時間がかかる処理はバックグラウンドで放置して待つ
 - **GPU は使えれば使う。** どのエンジンも CPU で動くことを前提にし、GPU は速くなるだけの扱いにする
-  - 動かして確かめた環境: Windows（CUDA）・macOS（Apple Silicon、MPS）。Linux は Tesseract だけ
+  - 動かして確かめた環境: Windows（CUDA）・macOS（Apple Silicon、MPS）・Linux（CPU のみ）
 - **エンジンは 1 つに固定しない。** 複数のエンジンを使い分け、乗り換えもできる形にする
 - **OCR と取り込みを分ける。** 取り込みは OCR を動かさず、保存済みの結果を読むだけにする
 
