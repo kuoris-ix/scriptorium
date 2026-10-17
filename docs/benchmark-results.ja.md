@@ -127,7 +127,7 @@ uv run scriptorium score-engines data/benchmark -e tesseract --orient tesseract 
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-08 |
-| 環境 | Windows 11（10.0.26300）、GPU（CUDA） |
+| 環境 | Windows 11（10.0.26300）、AMD Ryzen 9 5950X（16 コア・32 スレッド）、RAM 96GB、NVIDIA GeForce RTX 2080 SUPER（8GB）（CUDA） |
 | 書類 | `ocr make-samples --count 1 --seed 1`（4 種類 × 劣化 16 通り = 64 ページ）、フォントは Windows のもの（`ocr make-samples` が選んだもの） |
 | 設定 | 既定（300〜600dpi）。向きの判定・前処理はなし |
 
@@ -1116,7 +1116,7 @@ worker の数の決め方（`--jobs auto`、`design.ja.md` の「16. 速さ」�
 | 項目 | 内容 |
 |---|---|
 | 日付 | 2026-10-13 |
-| 環境 | Windows 11（10.0.26300）、CPU 16 コア（32 スレッド）、GPU（CUDA）1 枚 |
+| 環境 | Windows 11（10.0.26300）、AMD Ryzen 9 5950X（16 コア・32 スレッド）、RAM 96GB、NVIDIA GeForce RTX 2080 SUPER（8GB）（CUDA） |
 | エンジン | Tesseract 5.5.3（`jpn+eng`、psm 3）、NDLOCR-Lite 1.0.0、yomitoku 0.15.0（yomitoku・yomitoku-lite）、PaddleOCR 3.7.0（PaddlePaddle 3.3.1）、Windows の OCR（winocr 0.0.15） |
 | 装置 | yomitoku・yomitoku-lite・PaddleOCR は CUDA（`auto`）。「CPU で動かす」とした計測だけ `cpu`。PaddleOCR の CPU は CUDA 版を CPU で動かした（oneDNN は worker の設定どおり切ってある） |
 | 書類 | 「Linux: 速さ」と同じ A4 の PDF（300dpi・600dpi、各 10 ページ）。worker を複数にするのは、300dpi の PDF を描いておいた PNG 20 ページ（Tesseract・Windows の OCR・NDLOCR-Lite の多くは 8 回複製して 160 ページ、CPU の yomitoku は 40 ページ、CPU の PaddleOCR は worker 1 つに 2 ページ） |
@@ -1281,6 +1281,96 @@ A4 の PDF は「Linux: 速さ」と同じに作った。`data/speed/e2e` の 4 
 して、1 ページ目の隅に小さな点をファイルごとに違う場所に描いたもの（中身の違うファイルにするため）。描く・保存・読むの
 内訳、worker を N 個にした速さ、スレッドを絞った worker は、`runner` の関数と `Worker` をそのまま使う小さなスクリプトで
 測った。
+
+
+## Windows: master（v0.3.0 の前）での測り直し
+
+並列化（`--jobs`、先読み）を入れたあとの `master` で、Windows の全エンジンの動作と、正確さ・速さを測り直した。
+v0.3.0 を出す前の確認を兼ねる。
+
+### 条件
+
+| 項目 | 内容 |
+|---|---|
+| 日付 | 2026-10-17 |
+| scriptorium | `master` の 63c90c4（v0.2.0 のあと 15 コミット。`pyproject.toml` の版はまだ 0.2.0）、Python 3.14.3 |
+| 環境 | Windows 11（10.0.26300）、AMD Ryzen 9 5950X（16 コア・32 スレッド）、RAM 96GB、NVIDIA GeForce RTX 2080 SUPER（8GB、ドライバ 617.42、CUDA） |
+| エンジン | Tesseract 5.5.3（`jpn+eng`、psm 3）、NDLOCR-Lite 1.0.0、yomitoku 0.15.0（PyTorch 2.14.1+cu130。yomitoku・yomitoku-lite）、PaddleOCR 3.7.0（PaddlePaddle 3.3.1）、Windows の OCR（winocr 0.0.15） |
+| 装置 | yomitoku・yomitoku-lite・PaddleOCR は CUDA（`auto`）、ほかは CPU |
+| 設定 | 既定（worker の数は `--jobs auto`）と、`--orient tesseract --preprocess flatten,deskew` |
+
+worker の環境（`workers/`）は、`uv sync` で `uv.lock` どおりにした。
+
+### 動作
+
+`ocr check-engines` は、Tesseract・Windows の OCR・NDLOCR-Lite・yomitoku・yomitoku-lite・PaddleOCR のすべてで動いた
+（サンプル 1 枚の金額は、Tesseract が 12 個のうち 11 個、ほかは 12 個すべて）。256 ページすべてを読み、失敗は 0 ページ。
+
+### 正確さ（256 ページ）
+
+「Windows: 256 ページ」と同じ書類（`ocr make-samples --count 4 --seed 1`）を、保存先を新しくして読み直した。**6 エンジン
+× 2 設定のすべてで、金額の完全一致・日付の完全一致・文字の誤り率・読み落とした行が、2026-10-09 の表と同じ**だった。
+
+| 設定 | 読むのにかかった時間（6 エンジン、256 ページ） | 2026-10-09 |
+|---|---|---|
+| そのまま | 12 分 26 秒 | 37 分（206 ページ） |
+| 向き+前処理 | 15 分 0 秒 | 48 分（206 ページ） |
+
+前の時間は worker 1 つで、NDLOCR-Lite がモデルを読み込んだままにする前のもの（26〜28 分を占めていた）。この表の
+「1 ページの時間」は、Tesseract・Windows の OCR を複数の worker で動かしたぶん、worker ごとの値が前より長い（Tesseract
+0.7 → 0.8 秒、Windows の OCR 0.2 → 0.5 秒）。
+
+### 速さ（`ocr run`、40 ページ）
+
+「Windows: 速さ」と同じ 40 ページ（A4 の 300dpi の PDF 4 つ、各 10 ページ）を、エンジンごとに `--reread` で読み直した。
+時間はコマンド全体（worker の起動を含む、秒）。`auto` は、Tesseract・Windows の OCR が 12 worker、ほかは 1 worker。
+
+| `--jobs` | Tesseract | Windows の OCR |
+|---|---|---|
+| 1 | 30.8 | 9.4 |
+| 2 | 17.4 | 6.5 |
+| 4 | 10.3 | 5.1 |
+| 8 | 6.9 | **5.0** |
+| 12 | **6.6** | 5.8 |
+| 16 | 7.3 | 6.5 |
+| auto | 6.6 | 5.5 |
+
+Tesseract に `--orient tesseract --preprocess flatten,deskew` を付けると、auto で 14.9 秒、`--jobs 1` で 27.3 秒。
+
+| `--jobs` | NDLOCR-Lite | yomitoku-lite | yomitoku | PaddleOCR |
+|---|---|---|---|---|
+| 1 | 42.5 | 39.5 | 43.7 | 47.3 |
+| 2 | 37.3 | 32.2 | 43.6 | 58.9 |
+| auto（1） | 46.5 | 38.8 | 43.7 | 48.2 |
+
+2026-10-13 の「入れる前と後」（後）と比べると、Tesseract（6.7 → 6.6 秒）、向き+前処理（13.7 → 14.9 秒）、Windows の OCR
+（5.2 → 5.5 秒）は同じ。yomitoku（39.5 → 43.7 秒）と NDLOCR-Lite（40.5 → 42.5 秒）は 1 割ほど遅い。同じ条件で 3 回
+繰り返すと、yomitoku は 43.9〜47.1 秒、NDLOCR-Lite は 45.4〜46.5 秒だった。ぶれより大きい差だが、GPU を使うエンジンと
+CPU のエンジンの両方が遅いので、コードの変更とは決めていない（原因は調べていない）。
+
+### わかったこと
+
+- **正確さは、並列化とその後の修正で変わっていない**。読んだ内容が、全エンジン・全設定で前と同じ
+- **worker を増やして速くなるのは、前と同じ Tesseract と Windows の OCR**。Tesseract は 8 worker で 4.5 倍、12 で 4.7 倍
+  で頭打ち。Windows の OCR は 8 で最速（1.9 倍）、それ以上は遅くなる。`auto` の 12 worker は、どちらも最速に近い
+- yomitoku・NDLOCR-Lite・PaddleOCR は、worker を増やしても速くならず、PaddleOCR は 2 つにすると遅くなる（前の測定では
+  GPU のメモリの取り合いだった）。`auto` が 1 つにするのは合っている
+- 値は、この PC・架空の書類・40 ページのもの
+
+### 再現のしかた
+
+```bash
+uv run scriptorium make-samples data/speed/samples --count 1 --seed 1
+# data/speed/e2e の 4 つの PDF は、「Windows: 速さ」の「再現のしかた」と同じに作る
+uv run scriptorium run data/speed/e2e -e tesseract --reread --jobs 8
+uv run scriptorium run data/speed/e2e -e yomitoku --reread --jobs 1
+
+uv run scriptorium make-samples data/ocr-bench4 --count 4 --seed 1
+uv run scriptorium run data/ocr-bench4 -e all
+uv run scriptorium score-engines data/ocr-bench4 -e all --markdown
+uv run scriptorium run data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew
+uv run scriptorium score-engines data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew --markdown
+```
 
 
 ## Mac: 速さ（worker を複数）
