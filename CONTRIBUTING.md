@@ -44,6 +44,9 @@ covers; links in English documents point to it all the same.
 - The projects using scriptorium depend on a tag. Breaking changes (a command or option renamed
   or removed, `OcrConfig` or `ProgramNames` changed, an import moved) raise MINOR and are listed in the
   release notes.
+- Security fixes are listed in a Security section of the release notes: what was fixed, and
+  what users should do (such as changing the mode of a folder). Other changes in what a run does
+  by default (say, how many workers it starts) are listed too.
 
 ## Keeping what's been read
 

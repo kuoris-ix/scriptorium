@@ -2,7 +2,7 @@
 
 [English](benchmark-results.md) | 日本語
 
-`benchmark.ja.md` の計画で、架空の書類を読ませた結果。架空の書類だけの結果なので、読み違えた値もそのまま載せている。
+`benchmark.ja.md` の方法で、架空の書類を読ませた結果。架空の書類だけの結果なので、読み違えた値もそのまま載せている。
 
 再現のしかたのコマンドは、clone の中で動かす `scriptorium` コマンドと、その設定（`SCRIPTORIUM_*`、README の
 「試す」）で書いた。scriptorium の `ocr` コマンドを付けたプログラムでも同じ（`myapp ocr run` など。設定はその
@@ -99,7 +99,7 @@
   日付の数字を 1 つ取り違える）。ほかの劣化は変わらないか、少し良くなった
 - 時間は、前処理の分だけ 1 ページ 0.3〜1 秒ほど増える（同じ環境で、ほかの処理と同時に動かしたので目安）
 - Tesseract では `--orient tesseract --preprocess flatten,deskew` を使う。ほかのエンジン（自分で照明や傾きを扱うものも
-  ある）でも要るかは、段階 1 で同じように比べて決める
+  ある）でも要るかは、下の「Windows: 向きの判定と前処理」で同じように比べた
 
 ### 再現のしかた
 
@@ -1013,7 +1013,7 @@ phys_footprint を `footprint -p <pid>` で 20 秒ごとに記録した。
 
 ## Linux: 速さ（描くのと読むの割合、worker を複数）
 
-`ocr run` は、ページを 1 枚ずつ描いて PNG に保存し、1 つの worker に読ませる（`design.ja.md` の「16. 速さ」）。速くする
+`ocr run` は、ページを 1 枚ずつ描いて PNG に保存し、1 つの worker に読ませる（`design.ja.md` の「14. 速さ」）。速くする
 前に、どこに時間がかかるかと、worker を複数起動すると速くなるかを測った。コアの多い PC と GPU のエンジンは
 「Windows: 速さ」、それを受けて入れたもの（先読み・`--jobs`）の前と後もそちら。
 
@@ -1109,7 +1109,7 @@ A4 の PDF は、`make-samples` の `invoice-1-300.png`・`statement-1-300.png`�
 ## Windows: 速さ（コアの多い PC、GPU のエンジン、worker を複数）
 
 「Linux: 速さ」と同じ測り方で、コアが多く GPU のある Windows の PC で、入っているエンジンをすべて測った。ここから
-worker の数の決め方（`--jobs auto`、`design.ja.md` の「16. 速さ」）と先読みを入れ、入れる前と後の `ocr run` も比べた。
+worker の数の決め方（`--jobs auto`、`design.ja.md` の「14. 速さ」）と先読みを入れ、入れる前と後の `ocr run` も比べた。
 
 ### 条件
 

@@ -184,7 +184,7 @@ myapp ocr run data/scan -e yomitoku --orient tesseract
 - 架空の書類（128 ページ）では、Tesseract の判定は回したページ（32 ページ）すべてで正しかった。判定してから読むと、
   180 度回ったページも、回っていないページと同じだけ読めた。間違えたのは、ぼかしたページ 8 ページのうち 6 ページ
   （回っていないのに 180 度と判定）で、どれも確からしさが低かった
-- yomitoku・PaddleOCR・Apple Vision などが、自分でページの向きを扱えるか（`--orient` が要るか）は段階 1 で確かめる
+- yomitoku・PaddleOCR・Apple Vision などが、自分でページの向きを扱えるか（`--orient` が要るか）は `benchmark-results.ja.md` の「Windows: 向きの判定と前処理」で確かめた
 - PaddleOCR の文書の向きの補正・ゆがみの補正（`use_doc_orientation_classify`・`use_doc_unwarping`）は使わない。
   結果の座標が補正後の画像の上になり、ページに戻せないため
 
