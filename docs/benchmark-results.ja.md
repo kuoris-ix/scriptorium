@@ -1433,3 +1433,125 @@ done
 ```
 
 worker の数ごとの速さとメモリは、`Worker` を N 個起動して、描いておいた PNG を分け合わせる小さなスクリプトで測った。
+
+
+## Mac: master（v0.3.0 の前）での測り直し
+
+並列化（`--jobs`、先読み、Apple Vision の複数 worker）とその後の修正を入れた `master` で、Mac の全エンジンの動作と、
+正確さ・速さを測り直した。v0.3.0 を出す前の確認を兼ねる。書類は Windows の節と同じ（256 ページは Windows の PC から
+コピーしたもの）。
+
+### 条件
+
+| 項目 | 内容 |
+|---|---|
+| 日付 | 2026-10-17 |
+| scriptorium | `master` の 22d53e0（v0.2.0 のあと 17 コミット。`pyproject.toml` の版はまだ 0.2.0）、Python 3.14.8 |
+| 環境 | macOS 27.0.1、Apple M4 Pro（物理 14 コア・論理 14 コア）、メモリ 48GB |
+| エンジン | Tesseract 5.5.3（`jpn+eng`、psm 3、Homebrew）、NDLOCR-Lite 1.0.0、yomitoku 0.15.0（yomitoku・yomitoku-lite）、PaddleOCR 3.7.0（PaddlePaddle 3.3.1）、Apple Vision（ocrmac 1.0.1、`accurate`）。Windows の OCR は Mac では使えない |
+| 装置 | yomitoku・yomitoku-lite は MPS（`auto`）。PaddleOCR・NDLOCR-Lite・Tesseract は CPU。Apple Vision は Vision が選ぶ |
+| 設定 | 既定（worker の数は `--jobs auto`）と、`--orient tesseract --preprocess flatten,deskew` |
+
+worker の環境（`workers/`）は、`uv sync` で `uv.lock` どおりにした。
+
+### 動作
+
+`ocr check-engines` は、Tesseract・Apple Vision・NDLOCR-Lite・yomitoku・yomitoku-lite・PaddleOCR のすべてで動いた
+（サンプル 1 枚の金額は、yomitoku・yomitoku-lite・PaddleOCR が 12 個のうち 12 個、NDLOCR-Lite と Apple Vision が 11 個、
+Tesseract が 10 個）。256 ページすべてを 2 設定で読み、失敗は 0 ページ。`--jobs auto` は、Tesseract と Apple Vision が
+11 worker（14 コアのうち 3 つを空ける）、ほかは 1 worker だった。
+
+### 正確さ（256 ページ）
+
+「Windows: 256 ページ」と同じ書類（`ocr make-samples --count 4 --seed 1`）を、保存先を新しくして読んだ。
+
+| エンジン | 設定 | 金額の完全一致 | 日付の完全一致 | 文字の誤り率 | 読み落とした行 | 1 ページの時間 |
+|---|---|---|---|---|---|---|
+| yomitoku | そのまま | 97.1% | 95.5% | 2.4% | 2/10608 | 0.9 秒 |
+| | 向き+前処理 | 99.6% | **100.0%** | 0.3% | 0/10608 | 0.9 秒 |
+| yomitoku-lite | そのまま | 98.9% | 99.5% | 0.8% | 4/10608 | 0.6 秒 |
+| | 向き+前処理 | **99.7%** | **100.0%** | 0.2% | 0/10608 | 0.6 秒 |
+| paddleocr | そのまま | 99.6% | 99.8% | 0.9% | 5/10608 | 14.3 秒 |
+| | 向き+前処理 | 99.4% | 99.6% | 1.2% | 41/10608 | 14.4 秒 |
+| ndlocr-lite | そのまま | 74.8% | 84.2% | 18.6% | 366/10608 | 0.5 秒 |
+| | 向き+前処理 | 80.4% | 89.4% | 14.0% | 612/10608 | 0.5 秒 |
+| apple-vision | そのまま | 94.5% | 99.5% | 1.3% | 66/10608 | 0.5 秒 |
+| | 向き+前処理 | 94.6% | 99.8% | 1.1% | 37/10608 | 0.5 秒 |
+| tesseract | そのまま | 67.4% | 81.6% | 21.2% | 1184/10608 | 0.7 秒 |
+| | 向き+前処理 | 80.9% | 98.6% | 6.4% | 216/10608 | 0.8 秒 |
+
+読むのにかかった時間（256 ページ × 6 エンジン、worker の起動を含む）: そのまま 70 分 51 秒、向き+前処理 71 分 15 秒。
+どちらも PaddleOCR（1 ページ 14 秒前後）が大半を占める。
+
+- **yomitoku・yomitoku-lite・PaddleOCR・NDLOCR-Lite は、Windows の節（2026-10-09 と 2026-10-17）と、2 設定とも全体の
+  数が同じ**だった。劣化ごとの表も、Windows の「向き+前処理」と同じ
+- Tesseract だけ少し違う（そのまま 金額 67.2% → 67.4%・日付 81.7% → 81.6%・読み落とし 1185 → 1184、向き+前処理
+  80.7% → 80.9%・98.5% → 98.6%・217 → 216）。2026-10-09 の 64 ページと同じく、Homebrew と Windows の配布物の違いと思われる
+  （確かめていない）
+- Apple Vision の向き+前処理は、2026-10-09 の 256 ページ（向きの判定のみ）より、日付 99.5% → 99.8%、読み落とし 48 → 37 行と
+  良く、金額は 94.9% → 94.6%。読み違えの傾向（マイナスの記号 `▲`・`△`、3 桁区切りのピリオド）は前と同じ
+- **向きの判定がなければ `turned180` は、yomitoku が 62.9% / 27.8%、NDLOCR-Lite と Tesseract が 0〜4%**。向き+前処理では
+  全エンジンが 82〜100% に戻る（回す必要のあるページの扱いは、Windows と同じ）
+
+### 速さ（`ocr run`）
+
+Apple Vision は「Mac: 速さ（worker を複数）」と同じ 64 ページ（`make-samples --count 1 --seed 1`）。ほかは、「Windows:
+master（v0.3.0 の前）での測り直し」と同じ作り方の 40 ページ（A4 の 300dpi の PDF 4 つ、各 10 ページ）。どれも `--reread` で
+保存先を新しくして読み、時間はコマンド全体（worker の起動を含む、秒）。同じ条件を 3 回測った中央値（PaddleOCR だけ 1 回）。
+
+| `--jobs` | Apple Vision（64 ページ） | Tesseract（40 ページ） |
+|---|---|---|
+| 1 | 26.4 | 25.0 |
+| 2 | 14.8 | 13.8 |
+| 4 | 10.6 | 7.8 |
+| 8 | 8.7 | 4.8 |
+| 12 | 8.8 | **4.4** |
+| auto（11） | **8.5** | 4.4 |
+
+| `--jobs` | NDLOCR-Lite | yomitoku-lite | yomitoku | PaddleOCR（1 回） |
+|---|---|---|---|---|
+| 1 | 24.8 | 35.5 | 45.5 | 841 |
+| 2 | 20.8 | 26.3 | 36.2 | **451** |
+| auto（1） | 25.5 | 35.6 | 45.5 | 839 |
+
+3 回の幅は、Tesseract 0.1 秒以内、NDLOCR-Lite 1 秒以内、yomitoku・yomitoku-lite 2 秒以内。Apple Vision だけ、`--jobs 1` が
+25.8・26.4・37.3 秒、2 が 14.3・14.8・20.3 秒、4 が 10.3・10.6・12.5 秒と、3 回目が遅い（8 以上は 0.5 秒以内）。原因は調べていない。
+
+2026-10-14 の測定（Apple Vision 64 ページ 25.8 / 14.9 / 10.4 / 8.5 / 8.7 秒、NDLOCR-Lite・yomitoku・yomitoku-lite・PaddleOCR
+の 2 worker での速くなる倍率 1.22・1.34・1.17・1.64 倍）と比べると、同じ結果だった。今回の倍率は NDLOCR-Lite 1.19、yomitoku
+1.26、yomitoku-lite 1.35、PaddleOCR 1.86 倍。
+
+**読んだ内容**: Apple Vision を `--jobs 1` と `--jobs 8` で読んだ 64 ページは、読んだ語（文字と位置）が 64 ページすべて、
+2,682 語すべて同じだった。
+
+### わかったこと
+
+- **正確さは、並列化とその後の修正で変わっていない**。4 エンジンは Windows と数が同じで、Apple Vision も前と同じ傾向
+- **Mac で worker を増やして速くなるのは、Tesseract（12 で 5.7 倍）と Apple Vision（`auto` で 3.1 倍）**。どちらも
+  8 から先は頭打ちで、`auto` の 11 worker は最速と同じ。Tesseract は 40 ページを 4.4 秒で読み、Windows の 16 コアの PC
+  （6.6 秒）より速い
+- NDLOCR-Lite・yomitoku・yomitoku-lite は 2 worker で 1.2〜1.35 倍にしかならない（GPU は 1 つ、NDLOCR-Lite は 1 つでも
+  複数のコアを使う）。PaddleOCR は 2 worker で 1.86 倍になるが、メモリは 1 つで 19.5GB、2 つで 28.4GB（2026-10-14）なので、
+  `auto` が 1 つにするのは合っている。PaddleOCR は A4 の 300dpi の PDF では 1 ページ 21 秒かかる（正確さの書類は 14 秒）
+- 値は、この Mac・架空の書類・40〜64 ページのもの
+
+### 再現のしかた
+
+```bash
+git switch master && git pull && uv sync
+for w in yomitoku ndlocr_lite tesseract apple_vision paddleocr; do uv sync --project workers/$w; done
+uv run scriptorium check-engines
+
+# 正確さ（data/ocr-bench4 は Windows の PC からコピー。保存先を分けて）
+SCRIPTORIUM_DIR=data/ocr-m1 nohup caffeinate -i uv run scriptorium run data/ocr-bench4 -e all > data/ocr/mac-m1.txt 2>&1 &
+SCRIPTORIUM_DIR=data/ocr-m1 uv run scriptorium score-engines data/ocr-bench4 -e all --markdown
+SCRIPTORIUM_DIR=data/ocr-m2 nohup caffeinate -i uv run scriptorium run data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew > data/ocr/mac-m2.txt 2>&1 &
+SCRIPTORIUM_DIR=data/ocr-m2 uv run scriptorium score-engines data/ocr-bench4 -e all --orient tesseract --preprocess flatten,deskew --markdown
+
+# 速さ（data/speed/e2e の 4 つの PDF は、「Windows: 速さ」の「再現のしかた」と同じに作る）
+uv run scriptorium make-samples data/ocr-trial --count 1 --seed 1
+for j in 1 2 4 8 12 auto; do
+  SCRIPTORIUM_DIR=data/ocr-speed-tmp uv run scriptorium run data/ocr-trial -e apple-vision --reread --jobs $j
+  SCRIPTORIUM_DIR=data/ocr-speed-tmp uv run scriptorium run data/speed/e2e -e tesseract --reread --jobs $j
+done
+```
