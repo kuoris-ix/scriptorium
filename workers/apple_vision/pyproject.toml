@@ -2,7 +2,7 @@
 name = "scriptorium-apple-vision"
 version = "0.0.0"
 description = "scriptorium's OCR worker for the Vision framework built into macOS"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["ocrmac>=1.0", "pillow"]
 
 [tool.uv]

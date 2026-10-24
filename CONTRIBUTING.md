@@ -75,8 +75,8 @@ scriptorium reads personal documents (payslips, tax forms, receipts), so:
 
 ## Workers and dependencies
 
-- The workers (`workers/`) run in their engines' environments on Python 3.10 or later: keep them
-  to what 3.10 understands (ruff checks them with `target-version = "py310"`), and
+- The workers (`workers/`) run in their engines' environments on Python 3.11 or later: keep them
+  to what 3.11 understands (ruff checks them with `target-version = "py311"`), and
   `workers/ocr_worker.py` to the standard library. mypy doesn't check the workers (it would
   need their engines' libraries).
 - A new engine is a worker's folder (`pyproject.toml`, `uv.lock`, `worker.py`) and a line in

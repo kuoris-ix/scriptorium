@@ -27,7 +27,7 @@ Status: 0.x. The commands' help and most of `docs/` are in Japanese for now.
 ## Requirements
 
 - Python 3.14 or later, and [uv](https://docs.astral.sh/uv/)
-- The engines' environments: YomiToku, PaddleOCR and NDLOCR-Lite need Python 3.10–3.13 (uv
+- The engines' environments: YomiToku, PaddleOCR and NDLOCR-Lite need Python 3.11–3.13 (uv
   fetches it), and several GB of disk for their libraries and models
 
 ## Trying it out

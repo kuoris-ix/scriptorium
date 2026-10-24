@@ -2,7 +2,7 @@
 name = "scriptorium-tesseract"
 version = "0.0.0"
 description = "scriptorium's OCR worker for Tesseract (installed apart, with its Japanese data)"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 # Only the standard library: it runs the tesseract command.
 dependencies = []
 

@@ -30,7 +30,7 @@ else the engine gives, kept as it is.
 
 A worker's worker.py only starts its engine and reads a page with it (see
 `serve`); an engine that can tell how a page is turned also has `orient`.
-This module runs in every worker's environment (Python 3.10 or later), so
+This module runs in every worker's environment (Python 3.11 or later), so
 it uses the standard library only.
 """
 
