@@ -2,7 +2,7 @@
 name = "scriptorium-windows-ocr"
 version = "0.0.0"
 description = "scriptorium's OCR worker for the OCR built into Windows (Windows.Media.Ocr)"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["winocr>=0.0.15", "pillow"]
 
 [tool.uv]

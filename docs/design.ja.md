@@ -235,7 +235,7 @@ scriptorium（Python 3.14）                     workers/yomitoku/（Python 3.13
   `worker.py`。パッケージにはしない）。Python の版・依存はエンジンごとに決める。`uv sync --project workers/<worker>`
   で入れる（初回の `uv run` でも自動で入る）
 - worker は scriptorium を読み込まない（Python の版を縛らないため）。共通のやりとりは `workers/ocr_worker.py`
-  （標準ライブラリだけ、Python 3.10 以上。ruff は `workers/ruff.toml` で 3.10 として検査する）
+  （標準ライブラリだけ、Python 3.11 以上。ruff は `workers/ruff.toml` で 3.11 として検査する）
 - 標準出力の答えには印（`@@scriptorium@@ `）を付ける。ライブラリが標準出力に書くもの（進み具合など）と見分け、
   ログにだけ書くため。worker の Python の `print` は標準エラー出力に回す。標準エラー出力はログファイルへ
 - 読んだ結果はファイルで渡す（大きく、標準出力に混ざると壊れるため）。書きかけを読まないよう、一時ファイルに
@@ -483,12 +483,12 @@ myapp ocr diff-engines data/scan -e yomitoku -e paddleocr
 
 | エンジン（`--engine`） | worker | 特徴 | 装置 | Python | ライセンス |
 |---|---|---|---|---|---|
-| `yomitoku`・`yomitoku-lite` | `yomitoku` | yomitoku 0.15。日本語に特化。文字・表・レイアウトの解析まで。最有力 | CUDA・MPS・CPU（lite は CPU 向けの軽いモデル） | 3.10〜3.13 | CC BY-NC-SA 4.0（個人利用は可） |
-| `paddleocr` | `paddleocr` | PaddleOCR 3.7、PP-OCRv6（1 つのモデルで日本語・中国語・英語など）。比較の相手 | CUDA（Windows）・CPU | 3.10〜3.13 | Apache-2.0 |
-| `ndlocr-lite` | `ndlocr_lite` | 国立国会図書館。日本語の資料向け。ONNX Runtime で CPU でも軽い | CPU | 3.10〜3.13 | CC BY 4.0 |
-| `apple-vision` | `apple_vision` | macOS の Vision（ocrmac 1.0 経由）。速い（1 ページ 0.4 秒）が、マイナスの記号（`▲`・`△`）を読めず金額 94.8%（`benchmark-results.ja.md` の「Mac」） | Apple が選ぶ | 3.10 以上 | OS の機能（ocrmac は MIT） |
-| `windows-ocr` | `windows_ocr` | Windows の OCR（winocr 経由）。確からしさはない | CPU | 3.10 以上 | OS の機能 |
-| `tesseract` | `tesseract` | 精度の基準にする最低限のもの。日本語は弱い。本体は別に入れる | CPU | 3.10 以上 | Apache-2.0 |
+| `yomitoku`・`yomitoku-lite` | `yomitoku` | yomitoku 0.15。日本語に特化。文字・表・レイアウトの解析まで。最有力 | CUDA・MPS・CPU（lite は CPU 向けの軽いモデル） | 3.11〜3.13 | CC BY-NC-SA 4.0（個人利用は可） |
+| `paddleocr` | `paddleocr` | PaddleOCR 3.7、PP-OCRv6（1 つのモデルで日本語・中国語・英語など）。比較の相手 | CUDA（Windows）・CPU | 3.11〜3.13 | Apache-2.0 |
+| `ndlocr-lite` | `ndlocr_lite` | 国立国会図書館。日本語の資料向け。ONNX Runtime で CPU でも軽い | CPU | 3.11〜3.13 | CC BY 4.0 |
+| `apple-vision` | `apple_vision` | macOS の Vision（ocrmac 1.0 経由）。速い（1 ページ 0.4 秒）が、マイナスの記号（`▲`・`△`）を読めず金額 94.8%（`benchmark-results.ja.md` の「Mac」） | Apple が選ぶ | 3.11 以上 | OS の機能（ocrmac は MIT） |
+| `windows-ocr` | `windows_ocr` | Windows の OCR（winocr 経由）。確からしさはない | CPU | 3.11 以上 | OS の機能 |
+| `tesseract` | `tesseract` | 精度の基準にする最低限のもの。日本語は弱い。本体は別に入れる | CPU | 3.11 以上 | Apache-2.0 |
 
 - yomitoku・PaddleOCR のモデルは、初回にインターネット（Hugging Face・PaddlePaddle の配布元）から取ってくる
   （画像は送らない）。NDLOCR-Lite はモデルをリポジトリに含む
@@ -554,7 +554,7 @@ tests/ocr_app.py   … `make_app` を使うプログラムの例（テストで�
 
 workers/
   ocr_worker.py             … worker の共通部分（やりとり・装置の選び方）
-  ruff.toml                 … worker を Python 3.10 として検査する
+  ruff.toml                 … worker を Python 3.11 として検査する
   <worker>/pyproject.toml   … Python の版・依存
   <worker>/uv.lock
   <worker>/worker.py        … エンジンを起動し、1 ページを読む

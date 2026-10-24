@@ -26,7 +26,7 @@
 ## 必要なもの
 
 - Python 3.14 以上と [uv](https://docs.astral.sh/uv/)
-- エンジンの環境: YomiToku・PaddleOCR・NDLOCR-Lite は Python 3.10〜3.13 が要ります（uv が取ってきます）。ライブラリと
+- エンジンの環境: YomiToku・PaddleOCR・NDLOCR-Lite は Python 3.11〜3.13 が要ります（uv が取ってきます）。ライブラリと
   モデルで数 GB のディスクを使います
 
 ## 試す
