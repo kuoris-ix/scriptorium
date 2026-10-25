@@ -1,6 +1,6 @@
 [project]
 name = "scriptorium"
-version = "0.3.0"
+version = "0.3.1"
 description = "Reading scanned Japanese documents with several OCR engines, each in an environment of its own"
 readme = "README.md"
 license = "MIT"

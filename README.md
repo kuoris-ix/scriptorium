@@ -70,7 +70,7 @@ Depend on a tagged release:
 
 ```toml
 [project]
-dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.3.0"]
+dependencies = ["scriptorium @ git+https://github.com/kuoris-ix/scriptorium@v0.3.1"]
 ```
 
 and add the commands to your Typer app, with your settings (`OcrConfig`), and the command and
