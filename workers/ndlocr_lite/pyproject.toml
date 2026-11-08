@@ -21,4 +21,8 @@ override-dependencies = [
     "protobuf>=6.33.5,<7",
     "pypdf>=6.21.2,<7",
     "oauthlib>=4.0.0,<5",
+    # Not for a vulnerability: its PyYAML 6.0.1 has wheels for Python 3.11 and 3.12 only,
+    # so on 3.13 (which uv picks) it's built from source, and that needs a C compiler
+    # (on Windows, Visual Studio). 6.0.2 has wheels for 3.13 too.
+    "pyyaml>=6.0.2,<7",
 ]
